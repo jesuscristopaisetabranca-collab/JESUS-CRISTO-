@@ -24,7 +24,14 @@ import {
   Mail,
   Facebook,
   Twitter,
-  Link as LinkIcon
+  Link as LinkIcon,
+  User,
+  Lock,
+  LogIn,
+  Send,
+  MessageSquare,
+  Edit2,
+  RefreshCw
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -33,10 +40,69 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+interface EditableImageProps {
+  id: string;
+  defaultSrc: string;
+  alt: string;
+  className?: string;
+}
+
+const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, className }) => {
+  const [src, setSrc] = React.useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`img_${id}`) || defaultSrc;
+    }
+    return defaultSrc;
+  });
+
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setSrc(base64String);
+        localStorage.setItem(`img_${id}`, base64String);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  return (
+    <div className={cn("relative group", className)}>
+      <img 
+        src={src} 
+        alt={alt} 
+        className="w-full h-full object-cover"
+        referrerPolicy="no-referrer"
+      />
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          className="p-2 bg-white rounded-full text-blue-900 shadow-lg hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold"
+        >
+          <Edit2 className="w-4 h-4" /> Alterar Imagem
+        </button>
+      </div>
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleImageChange} 
+        accept="image/*" 
+        className="hidden" 
+      />
+    </div>
+  );
+};
+
 export default function App() {
   const [uploadedFiles, setUploadedFiles] = React.useState<File[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
   const [showShareOptions, setShowShareOptions] = React.useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
+  const [loginData, setLoginData] = React.useState({ email: '', password: '' });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -62,6 +128,17 @@ export default function App() {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(shareUrl);
     alert("Link copiado para a área de transferência!");
+  };
+
+  const resetAllImages = () => {
+    if (confirm("Deseja resetar todas as imagens para o padrão?")) {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('img_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      window.location.reload();
+    }
   };
 
   return (
@@ -103,6 +180,15 @@ export default function App() {
               </div>
             </div>
             <a href="#blog" className="hover:text-blue-600 transition-colors">Blog</a>
+            <a href="#contato" className="hover:text-blue-600 transition-colors">Contato</a>
+          </div>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsLoginModalOpen(true)}
+              className="px-6 py-2 bg-blue-900 text-white text-xs font-bold rounded-full hover:bg-blue-800 transition-all flex items-center gap-2"
+            >
+              <User className="w-4 h-4" /> Entrar
+            </button>
           </div>
         </div>
       </nav>
@@ -142,13 +228,13 @@ export default function App() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="relative max-w-3xl mx-auto aspect-video bg-blue-900 rounded-2xl shadow-2xl overflow-hidden group cursor-pointer border-4 border-white"
             >
-              <img 
-                src="https://picsum.photos/seed/tianeiva/1200/675" 
+              <EditableImage 
+                id="vsl-hero"
+                defaultSrc="https://picsum.photos/seed/tianeiva/1200/675" 
                 alt="Tia Neiva - O Segredo da Cura" 
-                className="w-full h-full object-cover opacity-70 group-hover:scale-105 transition-transform duration-700"
-                referrerPolicy="no-referrer"
+                className="w-full h-full opacity-70 group-hover:scale-105 transition-transform duration-700"
               />
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center">
+              <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center pointer-events-none">
                 <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform">
                   <PlayCircle className="w-10 h-10 fill-white text-amber-500" />
                 </div>
@@ -235,7 +321,12 @@ export default function App() {
             </div>
             <div className="grid md:grid-cols-2 gap-12 items-center">
               <div className="rounded-3xl overflow-hidden shadow-xl">
-                <img src="https://picsum.photos/seed/history/800/1000" alt="História do Vale" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <EditableImage 
+                  id="history-img"
+                  defaultSrc="https://picsum.photos/seed/history/800/1000" 
+                  alt="História do Vale" 
+                  className="w-full h-full"
+                />
               </div>
               <div className="space-y-6 text-emerald-800 leading-relaxed">
                 <p>
@@ -337,7 +428,12 @@ export default function App() {
                 </ul>
               </div>
               <div className="md:w-1/2 rounded-3xl overflow-hidden shadow-2xl">
-                <img src="https://picsum.photos/seed/dev/800/600" alt="Desenvolvimento" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <EditableImage 
+                  id="dev-img"
+                  defaultSrc="https://picsum.photos/seed/dev/800/600" 
+                  alt="Desenvolvimento" 
+                  className="w-full h-full"
+                />
               </div>
             </div>
           </div>
@@ -357,7 +453,12 @@ export default function App() {
                 </div>
               </div>
               <div className="md:w-1/2 rounded-3xl overflow-hidden shadow-2xl">
-                <img src="https://picsum.photos/seed/emplacamento/800/600" alt="Emplacamento" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                <EditableImage 
+                  id="emplacamento-img"
+                  defaultSrc="https://picsum.photos/seed/emplacamento/800/600" 
+                  alt="Emplacamento" 
+                  className="w-full h-full"
+                />
               </div>
             </div>
           </div>
@@ -497,7 +598,12 @@ export default function App() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                 <div key={i} className="aspect-square rounded-2xl overflow-hidden shadow-md hover:scale-105 transition-transform cursor-pointer">
-                  <img src={`https://picsum.photos/seed/vale${i}/400/400`} alt={`Foto ${i}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  <EditableImage 
+                    id={`gallery-${i}`}
+                    defaultSrc={`https://picsum.photos/seed/vale${i}/400/400`} 
+                    alt={`Foto ${i}`} 
+                    className="w-full h-full"
+                  />
                 </div>
               ))}
             </div>
@@ -622,11 +728,11 @@ export default function App() {
                   className="group rounded-2xl overflow-hidden border border-pink-100 bg-white shadow-sm hover:shadow-xl transition-all"
                 >
                   <div className="aspect-video overflow-hidden">
-                    <img 
-                      src={post.image} 
+                    <EditableImage 
+                      id={`blog-${idx}`}
+                      defaultSrc={post.image} 
                       alt={post.title} 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      referrerPolicy="no-referrer"
+                      className="w-full h-full group-hover:scale-105 transition-transform duration-500"
                     />
                   </div>
                   <div className="p-6">
@@ -647,11 +753,11 @@ export default function App() {
         <section id="garantia" className="py-24 bg-pink-100">
           <div className="max-w-4xl mx-auto px-4 text-center">
             <div className="inline-block p-4 bg-white rounded-full shadow-sm mb-8">
-              <img 
-                src="https://cdn-icons-png.flaticon.com/512/1041/1041916.png" 
+              <EditableImage 
+                id="guarantee-seal"
+                defaultSrc="https://cdn-icons-png.flaticon.com/512/1041/1041916.png" 
                 alt="Selo de Garantia" 
                 className="w-16 h-16"
-                referrerPolicy="no-referrer"
               />
             </div>
             <h2 className="text-3xl font-serif font-bold text-blue-900 mb-6">Sua Missão Sem Riscos</h2>
@@ -663,6 +769,87 @@ export default function App() {
               <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Satisfação Garantida</span>
               <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Risco Zero</span>
               <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Compromisso Espiritual</span>
+            </div>
+          </div>
+        </section>
+
+        {/* Contact Section */}
+        <section id="contato" className="py-24 bg-pink-50">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Entre em Contato</h2>
+              <p className="text-emerald-700">Dúvidas sobre a jornada ou o portal? Estamos aqui para ajudar.</p>
+            </div>
+
+            <div className="max-w-4xl mx-auto bg-white rounded-[3rem] shadow-xl overflow-hidden border border-pink-100">
+              <div className="flex flex-col md:flex-row">
+                {/* Contact Info */}
+                <div className="md:w-1/3 bg-blue-900 p-12 text-white">
+                  <h3 className="text-2xl font-serif font-bold mb-8">Informações</h3>
+                  <div className="space-y-6">
+                    <div className="flex items-start gap-4">
+                      <Sun className="w-6 h-6 text-amber-500 shrink-0" />
+                      <div>
+                        <p className="font-bold text-sm">Vale do Amanhecer</p>
+                        <p className="text-xs text-pink-100 opacity-70">Planaltina, DF - Brasil</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-4">
+                      <MessageSquare className="w-6 h-6 text-emerald-400 shrink-0" />
+                      <div>
+                        <p className="font-bold text-sm">Atendimento</p>
+                        <p className="text-xs text-pink-100 opacity-70">Segunda a Sexta, 9h às 18h</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-12 p-6 bg-white/10 rounded-2xl border border-white/10 italic text-sm">
+                    "Salve Deus! Onde houver um Jaguar, haverá uma luz acesa."
+                  </div>
+                </div>
+
+                {/* Contact Form */}
+                <div className="md:w-2/3 p-12">
+                  <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Nome</label>
+                        <input 
+                          type="text" 
+                          placeholder="Seu nome completo"
+                          className="w-full px-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">E-mail</label>
+                        <input 
+                          type="email" 
+                          placeholder="seu@email.com"
+                          className="w-full px-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Assunto</label>
+                      <input 
+                        type="text" 
+                        placeholder="Como podemos ajudar?"
+                        className="w-full px-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Mensagem</label>
+                      <textarea 
+                        rows={4}
+                        placeholder="Escreva sua mensagem aqui..."
+                        className="w-full px-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900 resize-none"
+                      ></textarea>
+                    </div>
+                    <button className="w-full py-4 bg-amber-500 text-white font-bold rounded-2xl hover:bg-amber-600 transition-all shadow-lg flex items-center justify-center gap-2">
+                      <Send className="w-5 h-5" /> Enviar Mensagem
+                    </button>
+                  </form>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -683,11 +870,97 @@ export default function App() {
         </section>
       </main>
 
+      {/* Login Modal */}
+      {isLoginModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => setIsLoginModalOpen(false)}
+            className="absolute inset-0 bg-blue-900/60 backdrop-blur-sm"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="relative w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden"
+          >
+            <div className="p-8 md:p-12">
+              <div className="text-center mb-8">
+                <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Sun className="w-8 h-8 text-amber-500" />
+                </div>
+                <h2 className="text-2xl font-serif font-bold text-blue-900">Portal do Jaguar</h2>
+                <p className="text-emerald-700 text-sm">Acesse sua jornada espiritual</p>
+              </div>
+
+              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">E-mail</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
+                    <input 
+                      type="email" 
+                      placeholder="seu@email.com"
+                      className="w-full pl-12 pr-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">Senha</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
+                    <input 
+                      type="password" 
+                      placeholder="••••••••"
+                      className="w-full pl-12 pr-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <label className="flex items-center gap-2 text-emerald-700 cursor-pointer">
+                    <input type="checkbox" className="rounded border-pink-200 text-amber-500 focus:ring-amber-500" />
+                    Lembrar de mim
+                  </label>
+                  <a href="#" className="text-blue-600 font-bold hover:underline">Esqueceu a senha?</a>
+                </div>
+
+                <button className="w-full py-4 bg-blue-900 text-white font-bold rounded-2xl hover:bg-blue-800 transition-all shadow-lg flex items-center justify-center gap-2">
+                  <LogIn className="w-5 h-5" /> Entrar no Portal
+                </button>
+              </form>
+
+              <div className="mt-8 text-center">
+                <p className="text-sm text-emerald-700">
+                  Ainda não é um Jaguar? <a href="#" className="text-amber-600 font-bold hover:underline">Inicie sua jornada</a>
+                </p>
+              </div>
+            </div>
+            
+            <button 
+              onClick={() => setIsLoginModalOpen(false)}
+              className="absolute top-6 right-6 p-2 hover:bg-pink-50 rounded-full text-emerald-400 transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </motion.div>
+        </div>
+      )}
+
       <footer className="py-12 bg-pink-50 border-t border-pink-200">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sun className="w-6 h-6 text-amber-500" />
-            <span className="font-serif italic text-lg font-bold text-blue-900">Vale do Amanhecer</span>
+          <div className="flex flex-col items-center gap-6 mb-8">
+            <button 
+              onClick={resetAllImages}
+              className="flex items-center gap-2 text-xs font-bold text-emerald-600 hover:text-amber-600 transition-colors uppercase tracking-widest"
+            >
+              <RefreshCw className="w-4 h-4" /> Resetar Todas as Imagens do Site
+            </button>
+            <div className="flex items-center justify-center gap-2">
+              <Sun className="w-6 h-6 text-amber-500" />
+              <span className="font-serif italic text-lg font-bold text-blue-900">Vale do Amanhecer</span>
+            </div>
           </div>
           <p className="text-emerald-700 text-sm mb-2">
             "Salve Deus! Onde houver um Jaguar, haverá uma luz acesa."
