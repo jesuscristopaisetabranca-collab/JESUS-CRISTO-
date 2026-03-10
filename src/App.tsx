@@ -42,7 +42,10 @@ import {
   Moon,
   ArrowUp,
   Youtube,
-  ArrowRight
+  ArrowRight,
+  Trash2,
+  Music,
+  Volume2
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -111,40 +114,48 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
   );
 };
 
-interface EditableVideoProps {
+interface EditableMediaProps {
   id: string;
   defaultSrc?: string;
   className?: string;
   isDev?: boolean;
 }
 
-const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className, isDev }) => {
-  const [videoSrc, setVideoSrc] = React.useState<string | null>(() => {
+const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className, isDev }) => {
+  const [mediaSrc, setMediaSrc] = React.useState<string | null>(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem(`video_${id}`);
+      return localStorage.getItem(`media_${id}`);
+    }
+    return null;
+  });
+  const [mediaType, setMediaType] = React.useState<'video' | 'audio' | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`media_type_${id}`) as 'video' | 'audio' | null;
     }
     return null;
   });
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const mediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     setError(null);
 
     if (file) {
-      // Validation: Check if it's a video
-      if (!file.type.startsWith('video/')) {
-        setError("Por favor, selecione apenas arquivos de vídeo.");
+      const isVideo = file.type.startsWith('video/');
+      const isAudio = file.type.startsWith('audio/');
+
+      if (!isVideo && !isAudio) {
+        setError("Por favor, selecione apenas arquivos de vídeo ou áudio.");
         setTimeout(() => setError(null), 5000);
         return;
       }
 
       // Optional: Check file size (e.g., 50MB limit for localStorage stability)
       if (file.size > 50 * 1024 * 1024) {
-        setError("O vídeo é muito grande. O limite é de 50MB.");
+        setError("O arquivo é muito grande. O limite é de 50MB.");
         setTimeout(() => setError(null), 5000);
         return;
       }
@@ -152,20 +163,33 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
-        setVideoSrc(base64String);
-        localStorage.setItem(`video_${id}`, base64String);
+        const type = isVideo ? 'video' : 'audio';
+        setMediaSrc(base64String);
+        setMediaType(type);
+        localStorage.setItem(`media_${id}`, base64String);
+        localStorage.setItem(`media_type_${id}`, type);
       };
       reader.readAsDataURL(file);
     }
   };
 
+  const removeMedia = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("Deseja realmente remover este arquivo de mídia?")) {
+      setMediaSrc(null);
+      setMediaType(null);
+      localStorage.removeItem(`media_${id}`);
+      localStorage.removeItem(`media_type_${id}`);
+    }
+  };
+
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (videoRef.current) {
+    if (mediaRef.current) {
       if (isPlaying) {
-        videoRef.current.pause();
+        mediaRef.current.pause();
       } else {
-        videoRef.current.play();
+        mediaRef.current.play();
       }
       setIsPlaying(!isPlaying);
     }
@@ -173,14 +197,33 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
 
   return (
     <div className={cn("relative group w-full h-full", className)}>
-      {videoSrc ? (
-        <video 
-          ref={videoRef}
-          src={videoSrc} 
-          className="w-full h-full object-cover"
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-        />
+      {mediaSrc ? (
+        mediaType === 'video' ? (
+          <video 
+            ref={mediaRef as React.RefObject<HTMLVideoElement>}
+            src={mediaSrc} 
+            className="w-full h-full object-cover"
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900 text-white p-8">
+            <motion.div
+              animate={isPlaying ? { scale: [1, 1.1, 1] } : {}}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="w-24 h-24 rounded-full bg-violet-500 flex items-center justify-center mb-4 shadow-2xl"
+            >
+              <Music className="w-12 h-12" />
+            </motion.div>
+            <p className="text-sm font-bold uppercase tracking-widest opacity-60">Áudio de Abertura</p>
+            <audio 
+              ref={mediaRef as React.RefObject<HTMLAudioElement>}
+              src={mediaSrc}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+            />
+          </div>
+        )
       ) : (
         <div className="w-full h-full bg-blue-900/50 flex items-center justify-center">
           <Video className="w-16 h-16 text-white/20" />
@@ -193,32 +236,48 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
         </div>
       )}
       
-      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4">
+      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-4 z-20">
         <div className="flex gap-3">
-          {videoSrc && (
+          {mediaSrc && (
             <button 
               onClick={togglePlay}
               className="p-4 bg-violet-500 rounded-full text-white shadow-xl hover:scale-110 transition-transform"
+              title={isPlaying ? "Pausar" : "Reproduzir"}
             >
               {isPlaying ? <X className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current" />}
             </button>
           )}
           {isDev && (
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className="p-4 bg-white rounded-full text-blue-900 shadow-xl hover:scale-110 transition-transform flex items-center gap-2 text-sm font-bold"
-            >
-              <Upload className="w-5 h-5" /> {videoSrc ? 'Alterar Vídeo' : 'Upload Vídeo'}
-            </button>
+            <>
+              <button 
+                onClick={() => fileInputRef.current?.click()}
+                className="p-4 bg-white rounded-full text-blue-900 shadow-xl hover:scale-110 transition-transform flex items-center gap-2 text-sm font-bold"
+                title="Upload Mídia"
+              >
+                <Upload className="w-5 h-5" /> {mediaSrc ? 'Substituir' : 'Upload'}
+              </button>
+              {mediaSrc && (
+                <button 
+                  onClick={removeMedia}
+                  className="p-4 bg-rose-500 rounded-full text-white shadow-xl hover:scale-110 transition-transform"
+                  title="Remover Mídia"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              )}
+            </>
           )}
         </div>
+        {!mediaSrc && isDev && (
+          <p className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Vídeo ou Áudio (Máx 50MB)</p>
+        )}
       </div>
       
       <input 
         type="file" 
         ref={fileInputRef} 
-        onChange={handleVideoChange} 
-        accept="video/*" 
+        onChange={handleMediaChange} 
+        accept="video/*,audio/*" 
         className="hidden" 
       />
     </div>
@@ -367,6 +426,7 @@ export default function App() {
   const [isDragging, setIsDragging] = React.useState(false);
   const [showShareOptions, setShowShareOptions] = React.useState(false);
   const [showHeroShareOptions, setShowHeroShareOptions] = React.useState(false);
+  const [selectedPost, setSelectedPost] = React.useState<any>(null);
   const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
   const [isAcervoModalOpen, setIsAcervoModalOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
@@ -528,68 +588,118 @@ export default function App() {
     )}>
       {/* Navigation / Header */}
       <nav className={cn(
-        "fixed top-0 w-full backdrop-blur-md z-50 border-b transition-colors duration-500",
-        isDarkMode ? "bg-slate-900/80 border-slate-800" : "bg-pink-100/80 border-pink-200"
+        "fixed top-0 w-full backdrop-blur-xl z-50 border-b transition-all duration-500",
+        isDarkMode ? "bg-slate-900/90 border-slate-800 shadow-2xl" : "bg-white/90 border-pink-100 shadow-sm"
       )}>
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3 group cursor-pointer">
-            <div className="relative w-10 h-10 flex items-center justify-center">
-              <div className="absolute inset-0 bg-yellow-400 rounded-full blur-md opacity-50 group-hover:opacity-80 transition-opacity animate-pulse"></div>
+        <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
+          {/* Logo Section */}
+          <div 
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex items-center gap-4 group cursor-pointer"
+          >
+            <div className="relative w-12 h-12 flex items-center justify-center">
+              <div className="absolute inset-0 bg-yellow-400 rounded-full blur-xl opacity-40 group-hover:opacity-60 transition-opacity animate-pulse"></div>
               <img 
                 src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=120&h=120&q=80" 
                 alt="Sol do Amanhecer" 
-                className="w-10 h-10 rounded-full object-cover relative z-10 border-2 border-yellow-200 shadow-[0_0_15px_rgba(250,204,21,0.5)]"
+                className="w-12 h-12 rounded-full object-cover relative z-10 border-2 border-yellow-200 shadow-lg transition-transform group-hover:scale-110 duration-500"
                 referrerPolicy="no-referrer"
               />
             </div>
             <div className="flex flex-col">
               <span className={cn(
-                "font-serif italic text-xl font-bold tracking-tight leading-none",
+                "font-serif italic text-2xl font-bold tracking-tight leading-none",
                 isDarkMode ? "text-white" : "text-blue-900"
               )}>
                 Vale do Amanhecer
               </span>
-              <span className="text-[8px] font-bold uppercase tracking-[0.2em] text-violet-500 mt-1">
+              <span className={cn(
+                "text-[9px] font-bold uppercase tracking-[0.3em] mt-1.5 transition-colors",
+                isDarkMode ? "text-violet-400" : "text-emerald-600"
+              )}>
                 Doutrina de Amor
               </span>
             </div>
           </div>
-          <div className="hidden lg:flex gap-8 text-xs font-bold text-emerald-700 uppercase tracking-wider">
-            <div className="group relative">
-              <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Doutrina <ChevronDown className="w-3 h-3" /></button>
-              <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
-                <a href="#historia" className="block py-2 hover:text-blue-600">Nossa História</a>
-                <a href="#falanges" className="block py-2 hover:text-blue-600">Falanges do Amanhecer</a>
-                <a href="#povo-cigano" className="block py-2 hover:text-blue-600">Povo Cigano</a>
-                <a href="#beneficios" className="block py-2 hover:text-blue-600">Benefícios</a>
+
+          {/* Desktop Menu */}
+          <div className={cn(
+            "hidden lg:flex items-center gap-1 text-[11px] font-bold uppercase tracking-widest",
+            isDarkMode ? "text-slate-300" : "text-emerald-800"
+          )}>
+            <div className="group relative px-4 py-2">
+              <button className="hover:text-violet-500 transition-colors flex items-center gap-1.5 py-2 relative group">
+                Doutrina 
+                <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+              </button>
+              <div className={cn(
+                "absolute top-full left-0 mt-1 shadow-2xl rounded-2xl p-3 min-w-[220px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:translate-y-0 translate-y-2 border",
+                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+              )}>
+                <a href="#historia" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Nossa História</a>
+                <a href="#falanges" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Falanges do Amanhecer</a>
+                <a href="#povo-cigano" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Povo Cigano</a>
+                <a href="#beneficios" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Benefícios</a>
               </div>
             </div>
-            <div className="group relative">
-              <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Jornada <ChevronDown className="w-3 h-3" /></button>
-              <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
-                <a href="#desenvolvimento" className="block py-2 hover:text-blue-600">Desenvolvimento</a>
-                <a href="#emplacamento" className="block py-2 hover:text-blue-600">Emplacamento</a>
-                <a href="#iniciacao" className="block py-2 hover:text-blue-600">Iniciação</a>
-                <a href="#elevacao" className="block py-2 hover:text-blue-600">Elevação</a>
-                <a href="#pre-centuria" className="block py-2 hover:text-blue-600">Pré Centuria</a>
+
+            <div className="group relative px-4 py-2">
+              <button className="hover:text-violet-500 transition-colors flex items-center gap-1.5 py-2 relative group">
+                Jornada 
+                <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+              </button>
+              <div className={cn(
+                "absolute top-full left-0 mt-1 shadow-2xl rounded-2xl p-3 min-w-[220px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:translate-y-0 translate-y-2 border",
+                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+              )}>
+                <a href="#desenvolvimento" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Desenvolvimento</a>
+                <a href="#emplacamento" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Emplacamento</a>
+                <a href="#iniciacao" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Iniciação</a>
+                <a href="#elevacao" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Elevação</a>
+                <a href="#pre-centuria" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Pré Centuria</a>
               </div>
             </div>
-            <div className="group relative">
-              <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Acervo <ChevronDown className="w-3 h-3" /></button>
-              <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
-                <a href="#mantras" className="block py-2 hover:text-blue-600">Mantras</a>
-                <a href="#musicas-ciganas" className="block py-2 hover:text-blue-600">Músicas Ciganas</a>
-                <a href="#fotos" className="block py-2 hover:text-blue-600">Galeria de Fotos</a>
-                <a href="#arquivos" className="block py-2 hover:text-blue-600">Downloads (Drive)</a>
+
+            <div className="group relative px-4 py-2">
+              <button className="hover:text-violet-500 transition-colors flex items-center gap-1.5 py-2 relative group">
+                Acervo 
+                <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+              </button>
+              <div className={cn(
+                "absolute top-full left-0 mt-1 shadow-2xl rounded-2xl p-3 min-w-[220px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:translate-y-0 translate-y-2 border",
+                isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+              )}>
+                <a href="#mantras" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Mantras</a>
+                <a href="#musicas-ciganas" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Músicas Ciganas</a>
+                <a href="#fotos" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Galeria de Fotos</a>
+                <a href="#arquivos" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Downloads (Drive)</a>
               </div>
             </div>
-            <a href="#blog" className="hover:text-blue-600 transition-colors">Blog</a>
-            <a href="#assistente-ia" className="hover:text-blue-600 transition-colors">Assistente IA</a>
-            <a href="#perolas" className="hover:text-blue-600 transition-colors">Só as Pérolas</a>
-            <a href="#contato" className="hover:text-blue-600 transition-colors">Contato</a>
+
+            <a href="#blog" className="px-4 py-2 hover:text-violet-500 transition-colors relative group">
+              Blog
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+            </a>
+            <a href="#assistente-ia" className="px-4 py-2 hover:text-violet-500 transition-colors relative group">
+              Assistente IA
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+            </a>
+            <a href="#perolas" className="px-4 py-2 hover:text-violet-500 transition-colors relative group">
+              Só as Pérolas
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+            </a>
+            <a href="#contato" className="px-4 py-2 hover:text-violet-500 transition-colors relative group">
+              Contato
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
+            </a>
           </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden sm:flex items-center gap-1">
+
+          {/* Actions Section */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-1 mr-2">
               <motion.div
                 animate={{ x: [0, 3, 0] }}
                 transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
@@ -602,39 +712,46 @@ export default function App() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className={cn(
-                  "p-2 rounded-full transition-all hover:scale-110",
-                  isDarkMode ? "text-rose-500 hover:bg-slate-800" : "text-rose-600 hover:bg-pink-200/50"
+                  "p-2.5 rounded-xl transition-all hover:scale-110",
+                  isDarkMode ? "text-rose-500 hover:bg-slate-800" : "text-rose-600 hover:bg-rose-50"
                 )}
                 title="Canal Oficial no YouTube"
               >
                 <Youtube className="w-5 h-5" />
               </a>
             </div>
+
             <button 
               onClick={toggleDarkMode}
               className={cn(
-                "p-2 rounded-full transition-all hover:scale-110",
-                isDarkMode ? "bg-violet-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]" : "bg-blue-900 text-white"
+                "p-2.5 rounded-xl transition-all hover:scale-110 flex items-center justify-center",
+                isDarkMode ? "bg-slate-800 text-violet-400 border border-slate-700" : "bg-blue-50 text-blue-900 border border-blue-100"
               )}
               title={isDarkMode ? "Modo Dia" : "Modo Noturno"}
             >
               {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
+
             <a 
               href="#arquivos"
-              className="flex px-4 sm:px-6 py-2 bg-violet-500 text-white text-[10px] sm:text-xs font-bold rounded-full hover:bg-violet-400 transition-all items-center gap-1 sm:gap-2 shadow-sm"
+              className="hidden md:flex px-6 py-2.5 bg-violet-600 text-white text-[11px] font-bold rounded-xl hover:bg-violet-700 transition-all items-center gap-2 shadow-lg shadow-violet-500/20 active:scale-95"
             >
-              <Download className="w-3 h-3 sm:w-4 h-4" /> Downloads
+              <Download className="w-4 h-4" /> Downloads
             </a>
+
             <button 
               onClick={() => setIsLoginModalOpen(true)}
-              className="hidden sm:flex px-6 py-2 bg-blue-900 text-white text-xs font-bold rounded-full hover:bg-blue-800 transition-all items-center gap-2"
+              className="hidden sm:flex px-6 py-2.5 bg-blue-900 text-white text-[11px] font-bold rounded-xl hover:bg-blue-800 transition-all items-center gap-2 shadow-lg shadow-blue-900/20 active:scale-95"
             >
               <User className="w-4 h-4" /> Entrar
             </button>
+
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 text-blue-900 hover:bg-pink-200/50 rounded-lg transition-colors"
+              className={cn(
+                "lg:hidden p-2.5 rounded-xl transition-colors",
+                isDarkMode ? "text-white hover:bg-slate-800" : "text-blue-900 hover:bg-blue-50"
+              )}
             >
               {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -646,64 +763,86 @@ export default function App() {
           initial={false}
           animate={isMobileMenuOpen ? { height: 'auto', opacity: 1 } : { height: 0, opacity: 0 }}
           className={cn(
-            "lg:hidden overflow-hidden transition-colors duration-500",
+            "lg:hidden overflow-hidden transition-all duration-500",
             isDarkMode ? "bg-slate-900 border-b border-slate-800" : "bg-white border-b border-pink-100"
           )}
         >
-          <div className="px-4 py-8 space-y-8 text-sm font-bold text-emerald-700 uppercase tracking-wider">
-            <div className="flex items-center gap-3 mb-4">
-              <img 
-                src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=80&h=80&q=80" 
-                alt="Sol do Amanhecer" 
-                className="w-8 h-8 rounded-full object-cover border border-yellow-400 shadow-sm"
-                referrerPolicy="no-referrer"
-              />
-              <span className={cn(
-                "font-serif italic text-lg font-bold tracking-tight",
-                isDarkMode ? "text-white" : "text-blue-900"
-              )}>Vale do Amanhecer</span>
+          <div className={cn(
+            "px-6 py-10 space-y-8 text-xs font-bold uppercase tracking-widest",
+            isDarkMode ? "text-slate-300" : "text-emerald-800"
+          )}>
+            <div className="flex items-center gap-4 mb-8">
+              <div className="relative w-10 h-10 flex items-center justify-center">
+                <div className="absolute inset-0 bg-yellow-400 rounded-full blur-lg opacity-30"></div>
+                <img 
+                  src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=80&h=80&q=80" 
+                  alt="Sol do Amanhecer" 
+                  className="w-10 h-10 rounded-full object-cover relative z-10 border border-yellow-200 shadow-sm"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className={cn(
+                  "font-serif italic text-xl font-bold tracking-tight",
+                  isDarkMode ? "text-white" : "text-blue-900"
+                )}>Vale do Amanhecer</span>
+                <span className="text-[8px] text-violet-500 tracking-[0.2em]">Doutrina de Amor</span>
+              </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-[10px] text-pink-400 mb-1">Doutrina</p>
-              <a href="#historia" className="block py-2 hover:text-blue-600">Nossa História</a>
-              <a href="#falanges" className="block py-2 hover:text-blue-600">Falanges do Amanhecer</a>
-              <a href="#povo-cigano" className="block py-2 hover:text-blue-600">Povo Cigano</a>
-              <a href="#beneficios" className="block py-2 hover:text-blue-600">Benefícios</a>
+
+            <div className="grid grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <p className="text-[10px] text-violet-500 border-b border-violet-500/20 pb-1">Doutrina</p>
+                <div className="flex flex-col gap-3">
+                  <a href="#historia" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Nossa História</a>
+                  <a href="#falanges" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Falanges</a>
+                  <a href="#povo-cigano" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Povo Cigano</a>
+                  <a href="#beneficios" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Benefícios</a>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <p className="text-[10px] text-violet-500 border-b border-violet-500/20 pb-1">Jornada</p>
+                <div className="flex flex-col gap-3">
+                  <a href="#desenvolvimento" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Desenvolvimento</a>
+                  <a href="#emplacamento" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Emplacamento</a>
+                  <a href="#iniciacao" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Iniciação</a>
+                  <a href="#elevacao" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Elevação</a>
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-[10px] text-pink-400 mb-1">Jornada</p>
-              <a href="#desenvolvimento" className="block py-2 hover:text-blue-600">Desenvolvimento</a>
-              <a href="#emplacamento" className="block py-2 hover:text-blue-600">Emplacamento</a>
-              <a href="#iniciacao" className="block py-2 hover:text-blue-600">Iniciação</a>
-              <a href="#elevacao" className="block py-2 hover:text-blue-600">Elevação</a>
-              <a href="#pre-centuria" className="block py-2 hover:text-blue-600">Pré Centuria</a>
+
+            <div className="space-y-4">
+              <p className="text-[10px] text-violet-500 border-b border-violet-500/20 pb-1">Acervo & Mais</p>
+              <div className="grid grid-cols-2 gap-4">
+                <a href="#mantras" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Mantras</a>
+                <a href="#musicas-ciganas" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Músicas</a>
+                <a href="#fotos" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Galeria</a>
+                <a href="#arquivos" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Downloads</a>
+                <a href="#blog" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Blog</a>
+                <a href="#assistente-ia" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">IA</a>
+                <a href="#perolas" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Pérolas</a>
+                <a href="#contato" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Contato</a>
+              </div>
             </div>
-            <div className="space-y-2">
-              <p className="text-[10px] text-pink-400 mb-1">Acervo</p>
-              <a href="#mantras" className="block py-2 hover:text-blue-600">Mantras</a>
-              <a href="#musicas-ciganas" className="block py-2 hover:text-blue-600">Músicas Ciganas</a>
-              <a href="#fotos" className="block py-2 hover:text-blue-600">Galeria de Fotos</a>
-              <a href="#arquivos" className="block py-2 hover:text-blue-600">Downloads (Drive)</a>
-            </div>
-            <a href="#blog" className="block py-2 hover:text-blue-600">Blog</a>
-            <a href="#assistente-ia" className="block py-2 hover:text-blue-600">Assistente IA</a>
-            <a href="#perolas" className="block py-2 hover:text-blue-600">Só as Pérolas</a>
-            <a href="#contato" className="block py-2 hover:text-blue-600">Contato</a>
-            <button 
-              onClick={() => { setIsLoginModalOpen(true); setIsMobileMenuOpen(false); }}
-              className="w-full py-3 bg-blue-900 text-white rounded-xl flex items-center justify-center gap-2"
-            >
-              <User className="w-4 h-4" /> Entrar
-            </button>
-            <div className="pt-4 border-t border-pink-100 flex items-center gap-4">
-              <a 
-                href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-rose-600"
+
+            <div className="pt-6 border-t border-slate-500/10 flex flex-col gap-4">
+              <button 
+                onClick={() => { setIsLoginModalOpen(true); setIsMobileMenuOpen(false); }}
+                className="w-full py-4 bg-blue-900 text-white rounded-2xl font-bold shadow-xl shadow-blue-900/20 flex items-center justify-center gap-2"
               >
-                <Youtube className="w-5 h-5" /> Canal Oficial
-              </a>
+                <User className="w-4 h-4" /> Entrar no Portal
+              </button>
+              <div className="flex items-center justify-center gap-6">
+                <a href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g" target="_blank" rel="noopener noreferrer" className="text-rose-600">
+                  <Youtube className="w-6 h-6" />
+                </a>
+                <button onClick={toggleDarkMode} className={cn(
+                  "p-2 rounded-xl",
+                  isDarkMode ? "bg-slate-800 text-violet-400" : "bg-blue-50 text-blue-900"
+                )}>
+                  {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>
@@ -765,8 +904,8 @@ export default function App() {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="relative max-w-3xl mx-auto aspect-video bg-blue-900 rounded-2xl shadow-2xl overflow-hidden group border-4 border-white"
             >
-              <EditableVideo 
-                id="vsl-video"
+              <EditableMedia 
+                id="vsl-media"
                 isDev={isDev}
                 className="w-full h-full"
               />
@@ -774,7 +913,7 @@ export default function App() {
               {/* Overlay content - only shown if no video or on hover if we want, but let's keep it simple */}
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center pointer-events-none group-hover:opacity-0 transition-opacity">
                 <p className="text-xl font-bold mb-2 drop-shadow-md">O Segredo da Cura que Tia Neiva Revelou</p>
-                <p className="text-sm opacity-80 max-w-md">Faça o upload do vídeo da aula ou depoimento aqui.</p>
+                <p className="text-sm opacity-80 max-w-md">Faça o upload do vídeo da aula ou áudio de abertura aqui.</p>
               </div>
 
               {/* Share Button */}
@@ -1956,18 +2095,21 @@ export default function App() {
                 {
                   title: "A Importância do Doutrinador na Nova Era",
                   excerpt: "Entenda o papel fundamental do Doutrinador no equilíbrio das forças e na condução dos trabalhos espirituais.",
+                  content: "O Doutrinador é a peça fundamental no mecanismo da Doutrina do Amanhecer. Sua missão transcende o simples ato de falar; ele é o equilíbrio, a força consciente que manipula as energias em conjunto com o Apará. Na Nova Era, onde as vibrações estão cada vez mais intensas, o Doutrinador deve estar preparado, com sua mente sintonizada nos planos superiores, para servir de canal para a cura e a libertação de irmãos sofredores. Ser Doutrinador é um compromisso de amor e responsabilidade com a humanidade.",
                   date: "10 Mar, 2026",
                   image: "https://picsum.photos/seed/doutrina/600/400"
                 },
                 {
                   title: "Manipulação de Energias: O Guia Básico",
                   excerpt: "Como Tia Neiva nos ensinou a lidar com as correntes magnéticas para o auxílio e a cura.",
+                  content: "Tia Neiva nos deixou um legado riquíssimo sobre a manipulação das correntes magnéticas. Tudo no universo é energia, e nós, como médiuns do Amanhecer, somos instrumentos para canalizar essas forças. O segredo reside na concentração, na fé e no amor incondicional. Ao abrir um trabalho, criamos um campo magnético que atrai as falanges espirituais. Aprender a direcionar essa energia com precisão é o que diferencia um trabalho eficaz de uma simples cerimônia. A prática constante e o estudo das leis espirituais são o caminho para o domínio dessa ciência.",
                   date: "08 Mar, 2026",
                   image: "https://picsum.photos/seed/energy/600/400"
                 },
                 {
                   title: "O Chamado do Jaguar: Missão e Compromisso",
                   excerpt: "Reflexões sobre o compromisso assumido por cada Jaguar ao ingressar na Doutrina do Amanhecer.",
+                  content: "Ingressar na Doutrina do Amanhecer não é apenas uma escolha religiosa, é o despertar de uma consciência milenar. O Jaguar é um espírito que assumiu compromissos graves em encarnações passadas e agora tem a oportunidade de reajustar seu carma através da caridade. O chamado é forte e ressoa no fundo da alma. Mas com o chamado vem o compromisso: a disciplina, a obediência às leis da doutrina e, acima de tudo, a dedicação ao próximo. Ser Jaguar é viver a doutrina 24 horas por dia, sendo um exemplo de conduta e amor por onde passar.",
                   date: "05 Mar, 2026",
                   image: "https://picsum.photos/seed/mission/600/400"
                 }
@@ -1975,8 +2117,9 @@ export default function App() {
                 <motion.div
                   key={idx}
                   whileHover={{ y: -5 }}
+                  onClick={() => setSelectedPost(post)}
                   className={cn(
-                    "group rounded-2xl overflow-hidden border transition-all hover:shadow-xl",
+                    "group rounded-2xl overflow-hidden border transition-all hover:shadow-xl cursor-pointer",
                     isDarkMode ? "bg-slate-900 border-slate-800 shadow-sm" : "bg-white border-pink-100 shadow-sm"
                   )}
                 >
@@ -2005,12 +2148,12 @@ export default function App() {
                       "text-sm leading-relaxed mb-4",
                       isDarkMode ? "text-slate-400" : "text-emerald-700"
                     )}>{post.excerpt}</p>
-                    <a href="#" className={cn(
+                    <button className={cn(
                       "font-bold text-sm flex items-center gap-1 hover:gap-2 transition-all",
                       isDarkMode ? "text-violet-500" : "text-blue-600"
                     )}>
                       Ler mais <Sparkles className="w-4 h-4" />
-                    </a>
+                    </button>
                   </div>
                 </motion.div>
               ))}
@@ -2454,6 +2597,77 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {/* Blog Post Modal */}
+      {selectedPost && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => setSelectedPost(null)}
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className={cn(
+              "relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl shadow-2xl transition-colors duration-500",
+              isDarkMode ? "bg-slate-900 text-white" : "bg-white text-slate-900"
+            )}
+          >
+            <button 
+              onClick={() => setSelectedPost(null)}
+              className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-500/20 transition-colors z-10"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            
+            <div className="aspect-video w-full overflow-hidden">
+              <img 
+                src={selectedPost.image} 
+                alt={selectedPost.title} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            
+            <div className="p-8 md:p-12">
+              <span className={cn(
+                "text-xs font-bold uppercase tracking-widest",
+                isDarkMode ? "text-violet-400" : "text-emerald-600"
+              )}>{selectedPost.date}</span>
+              <h2 className="text-3xl md:text-4xl font-serif font-bold mt-4 mb-8 leading-tight">
+                {selectedPost.title}
+              </h2>
+              <div className={cn(
+                "text-lg leading-relaxed space-y-6",
+                isDarkMode ? "text-slate-300" : "text-slate-700"
+              )}>
+                <p>{selectedPost.content}</p>
+                <p>A Doutrina do Amanhecer é uma jornada de autoconhecimento e serviço. Cada artigo que compartilhamos aqui visa fortalecer sua fé e seu entendimento sobre as leis espirituais que regem nosso trabalho. Continue estudando, continue praticando a caridade, e lembre-se sempre das palavras de Tia Neiva.</p>
+              </div>
+              
+              <div className="mt-12 pt-8 border-t border-slate-500/20 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center text-white font-bold">
+                    VA
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold">Equipe Vale</p>
+                    <p className="text-xs opacity-60">Portal de Estudos</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedPost(null)}
+                  className="px-8 py-3 bg-violet-500 text-white font-bold rounded-full hover:bg-violet-600 transition-colors"
+                >
+                  Fechar Artigo
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Back to Top Button */}
       <motion.button
