@@ -33,7 +33,9 @@ import {
   Edit2,
   RefreshCw,
   Play,
-  Quote
+  Quote,
+  Users,
+  Gem
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -113,12 +115,29 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
     return null;
   });
   const [isPlaying, setIsPlaying] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
   const videoRef = React.useRef<HTMLVideoElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    setError(null);
+
     if (file) {
+      // Validation: Check if it's a video
+      if (!file.type.startsWith('video/')) {
+        setError("Por favor, selecione apenas arquivos de vídeo.");
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
+      // Optional: Check file size (e.g., 50MB limit for localStorage stability)
+      if (file.size > 50 * 1024 * 1024) {
+        setError("O vídeo é muito grande. O limite é de 50MB.");
+        setTimeout(() => setError(null), 5000);
+        return;
+      }
+
       const reader = new FileReader();
       reader.onloadend = () => {
         const base64String = reader.result as string;
@@ -154,6 +173,12 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
       ) : (
         <div className="w-full h-full bg-blue-900/50 flex items-center justify-center">
           <Video className="w-16 h-16 text-white/20" />
+        </div>
+      )}
+      
+      {error && (
+        <div className="absolute top-4 left-4 right-4 bg-rose-500 text-white text-xs font-bold py-2 px-4 rounded-lg shadow-lg z-30 animate-bounce">
+          {error}
         </div>
       )}
       
@@ -247,6 +272,8 @@ export default function App() {
               <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Doutrina <ChevronDown className="w-3 h-3" /></button>
               <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
                 <a href="#historia" className="block py-2 hover:text-blue-600">Nossa História</a>
+                <a href="#falanges" className="block py-2 hover:text-blue-600">Falanges do Amanhecer</a>
+                <a href="#povo-cigano" className="block py-2 hover:text-blue-600">Povo Cigano</a>
                 <a href="#beneficios" className="block py-2 hover:text-blue-600">Benefícios</a>
               </div>
             </div>
@@ -266,7 +293,7 @@ export default function App() {
                 <a href="#mantras" className="block py-2 hover:text-blue-600">Mantras</a>
                 <a href="#musicas-ciganas" className="block py-2 hover:text-blue-600">Músicas Ciganas</a>
                 <a href="#fotos" className="block py-2 hover:text-blue-600">Galeria de Fotos</a>
-                <a href="#arquivos" className="block py-2 hover:text-blue-600">Portal de Arquivos</a>
+                <a href="#arquivos" className="block py-2 hover:text-blue-600">Biblioteca Digital (Drive)</a>
               </div>
             </div>
             <a href="#blog" className="hover:text-blue-600 transition-colors">Blog</a>
@@ -483,7 +510,86 @@ export default function App() {
           </div>
         </section>
 
+        {/* Falanges Section */}
+        <section id="falanges" className="py-24 bg-white scroll-mt-24">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Falanges do Amanhecer</h2>
+              <p className="text-emerald-700 max-w-2xl mx-auto">As diversas frentes de trabalho espiritual que compõem a nossa doutrina, cada uma com sua missão e força específica.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {[
+                { name: "Nityamas", desc: "A pureza e a força das jovens missionárias." },
+                { name: "Samaritanas", desc: "O serviço de auxílio e amparo nos rituais." },
+                { name: "Prisioneiros", desc: "A jornada de resgate e libertação espiritual." },
+                { name: "Magos", desc: "A manipulação das forças da natureza e do cosmos." },
+                { name: "Ciganas", desc: "A alegria e a intuição do povo do Oriente." },
+                { name: "Franciscanos", desc: "A humildade e o amor incondicional aos irmãos." },
+                { name: "Yaras", desc: "A força das águas e a purificação espiritual." },
+                { name: "Muruaicy", desc: "A sabedoria ancestral e a proteção da terra." }
+              ].map((falange, idx) => (
+                <motion.div
+                  key={idx}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  whileInView={{ opacity: 1, scale: 1 }}
+                  viewport={{ once: true }}
+                  transition={{ delay: idx * 0.05 }}
+                  className="p-6 bg-pink-50 rounded-2xl border border-pink-100 hover:border-blue-200 hover:shadow-md transition-all group"
+                >
+                  <div className="w-12 h-12 bg-blue-900 rounded-xl flex items-center justify-center text-white mb-4 group-hover:rotate-6 transition-transform">
+                    <Users className="w-6 h-6" />
+                  </div>
+                  <h3 className="font-bold text-blue-900 mb-2">{falange.name}</h3>
+                  <p className="text-sm text-emerald-700">{falange.desc}</p>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </section>
 
+        {/* Povo Cigano Section */}
+        <section id="povo-cigano" className="py-24 bg-pink-50 scroll-mt-24">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="flex flex-col lg:flex-row items-center gap-12">
+              <div className="lg:w-1/2">
+                <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-6">O Povo Cigano no Amanhecer</h2>
+                <p className="text-emerald-800 mb-6 leading-relaxed">
+                  A influência cigana no Vale do Amanhecer é uma das mais belas e vibrantes frentes de trabalho. Representando a liberdade, a alegria e a profunda conexão com as forças da natureza, os Ciganos trazem uma energia de cura e desobsessão única.
+                </p>
+                <div className="space-y-4">
+                  {[
+                    "Liberdade espiritual e desapego material.",
+                    "Alegria como ferramenta de elevação vibracional.",
+                    "Conexão profunda com os quatro elementos.",
+                    "Sapiência milenar do Oriente e do Egito."
+                  ].map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3">
+                      <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white">
+                        <CheckCircle2 className="w-4 h-4" />
+                      </div>
+                      <span className="text-emerald-900 font-medium">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="lg:w-1/2 grid grid-cols-2 gap-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className={cn(
+                    "rounded-3xl overflow-hidden shadow-lg aspect-[4/5]",
+                    i % 2 === 0 ? "mt-8" : ""
+                  )}>
+                    <EditableImage 
+                      id={`cigano-img-${i}`}
+                      defaultSrc={`https://picsum.photos/seed/cigano${i}/600/800`} 
+                      alt={`Povo Cigano ${i}`} 
+                      className="w-full h-full"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Jornada do Jaguar Header */}
         <section className="py-12 bg-blue-900 text-white text-center">
@@ -752,11 +858,69 @@ export default function App() {
         <section id="arquivos" className="py-24 bg-white scroll-mt-24">
           <div className="max-w-7xl mx-auto px-4">
             <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Portal de Arquivos do Jaguar</h2>
-              <p className="text-emerald-700">Compartilhe e acesse materiais de estudo, vídeos e fotos da nossa doutrina.</p>
+              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Biblioteca Digital do Amanhecer</h2>
+              <p className="text-emerald-700 max-w-2xl mx-auto">Acesse nosso acervo completo de livros, leis, áudios e materiais de estudo diretamente no Google Drive.</p>
+            </div>
+
+            <div className="grid lg:grid-cols-2 gap-12 items-center mb-24">
+              <div className="space-y-8">
+                <div className="flex gap-6 items-start p-6 bg-pink-50 rounded-3xl border border-pink-100 hover:shadow-lg transition-all">
+                  <div className="w-14 h-14 bg-blue-900 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg">
+                    <BookOpen className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-blue-900 mb-2">Livros e Leis</h3>
+                    <p className="text-emerald-700 text-sm leading-relaxed">Obras completas de Tia Neiva, leis do amanhecer e manuais de instrução para médiuns.</p>
+                  </div>
+                </div>
+                <div className="flex gap-6 items-start p-6 bg-pink-50 rounded-3xl border border-pink-100 hover:shadow-lg transition-all">
+                  <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg">
+                    <PlayCircle className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-blue-900 mb-2">Áudios e Mantras</h3>
+                    <p className="text-emerald-700 text-sm leading-relaxed">Gravações originais de mantras, preces e instruções sonoras para harmonização.</p>
+                  </div>
+                </div>
+                <div className="flex gap-6 items-start p-6 bg-pink-50 rounded-3xl border border-pink-100 hover:shadow-lg transition-all">
+                  <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shrink-0 shadow-lg">
+                    <File className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-blue-900 mb-2">Materiais de Estudo</h3>
+                    <p className="text-emerald-700 text-sm leading-relaxed">Apostilas de desenvolvimento, iniciação, elevação e centúria para sua jornada.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-900 rounded-[3rem] p-12 text-center text-white shadow-2xl relative overflow-hidden group">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-all"></div>
+                <div className="relative z-10">
+                  <Sun className="w-16 h-16 text-amber-400 mx-auto mb-6 animate-pulse" />
+                  <h3 className="text-3xl font-serif font-bold mb-4">Acesso ao Acervo Completo</h3>
+                  <p className="text-blue-100 mb-8 leading-relaxed">
+                    Clique no botão abaixo para ser redirecionado ao nosso Google Drive oficial com todos os materiais da Doutrina do Amanhecer.
+                  </p>
+                  <a 
+                    href="https://drive.google.com" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-3 px-10 py-5 bg-amber-500 text-white font-bold rounded-full hover:bg-amber-400 hover:scale-105 transition-all shadow-xl"
+                  >
+                    <LinkIcon className="w-6 h-6" /> Acessar Google Drive
+                  </a>
+                  <p className="mt-6 text-xs text-blue-300">
+                    * Requer conta Google para visualização e download.
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-serif font-bold text-blue-900">Portal de Upload do Jaguar</h3>
+                <p className="text-emerald-700 mt-2 text-sm">Contribua com o acervo enviando seus próprios arquivos.</p>
+              </div>
               {/* Upload Zone */}
               <div
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
