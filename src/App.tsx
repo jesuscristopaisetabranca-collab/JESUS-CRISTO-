@@ -51,9 +51,10 @@ interface EditableImageProps {
   defaultSrc: string;
   alt: string;
   className?: string;
+  isDev?: boolean;
 }
 
-const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, className }) => {
+const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, className, isDev }) => {
   const [src, setSrc] = React.useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(`img_${id}`) || defaultSrc;
@@ -84,14 +85,16 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
         className="w-full h-full object-cover"
         referrerPolicy="no-referrer"
       />
-      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-        <button 
-          onClick={() => fileInputRef.current?.click()}
-          className="p-2 bg-white rounded-full text-blue-900 shadow-lg hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold"
-        >
-          <Edit2 className="w-4 h-4" /> Alterar Imagem
-        </button>
-      </div>
+      {isDev && (
+        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            className="p-2 bg-white rounded-full text-blue-900 shadow-lg hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold"
+          >
+            <Edit2 className="w-4 h-4" /> Alterar Imagem
+          </button>
+        </div>
+      )}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -107,9 +110,10 @@ interface EditableVideoProps {
   id: string;
   defaultSrc?: string;
   className?: string;
+  isDev?: boolean;
 }
 
-const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className }) => {
+const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className, isDev }) => {
   const [videoSrc, setVideoSrc] = React.useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(`video_${id}`);
@@ -194,12 +198,14 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
               {isPlaying ? <X className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current" />}
             </button>
           )}
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="p-4 bg-white rounded-full text-blue-900 shadow-xl hover:scale-110 transition-transform flex items-center gap-2 text-sm font-bold"
-          >
-            <Upload className="w-5 h-5" /> {videoSrc ? 'Alterar Vídeo' : 'Upload Vídeo'}
-          </button>
+          {isDev && (
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-4 bg-white rounded-full text-blue-900 shadow-xl hover:scale-110 transition-transform flex items-center gap-2 text-sm font-bold"
+            >
+              <Upload className="w-5 h-5" /> {videoSrc ? 'Alterar Vídeo' : 'Upload Vídeo'}
+            </button>
+          )}
         </div>
       </div>
       
@@ -220,7 +226,45 @@ export default function App() {
   const [showShareOptions, setShowShareOptions] = React.useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isDev, setIsDev] = React.useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('isDev') === 'true';
+    }
+    return false;
+  });
   const [loginData, setLoginData] = React.useState({ email: '', password: '' });
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    // Simple logic: if email is admin@vale.com, enable dev mode
+    if (loginData.email === 'admin@vale.com' && loginData.password === 'admin') {
+      setIsDev(true);
+      localStorage.setItem('isDev', 'true');
+      setIsLoginModalOpen(false);
+      alert("Modo Desenvolvedor Ativado!");
+    } else {
+      alert("Login realizado com sucesso! (Modo Visitante)");
+      setIsLoginModalOpen(false);
+    }
+  };
+
+  const toggleDev = () => {
+    const newState = !isDev;
+    setIsDev(newState);
+    localStorage.setItem('isDev', String(newState));
+  };
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl + Shift + D to toggle dev mode
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        toggleDev();
+        alert(`Modo Desenvolvedor ${!isDev ? 'Ativado' : 'Desativado'}`);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isDev]);
 
   React.useEffect(() => {
     const handleInternalLinks = (e: MouseEvent) => {
@@ -431,6 +475,7 @@ export default function App() {
             >
               <EditableVideo 
                 id="vsl-video"
+                isDev={isDev}
                 className="w-full h-full"
               />
               
@@ -521,6 +566,7 @@ export default function App() {
               <div className="rounded-3xl overflow-hidden shadow-xl">
                 <EditableImage 
                   id="history-img"
+                  isDev={isDev}
                   defaultSrc="https://picsum.photos/seed/history/800/1000" 
                   alt="História do Vale" 
                   className="w-full h-full"
@@ -663,6 +709,7 @@ export default function App() {
                   )}>
                     <EditableImage 
                       id={`cigano-img-${i}`}
+                      isDev={isDev}
                       defaultSrc={`https://picsum.photos/seed/cigano${i}/600/800`} 
                       alt={`Povo Cigano ${i}`} 
                       className="w-full h-full"
@@ -707,6 +754,7 @@ export default function App() {
               <div className="md:w-1/2 rounded-3xl overflow-hidden shadow-2xl">
                 <EditableImage 
                   id="dev-img"
+                  isDev={isDev}
                   defaultSrc="https://picsum.photos/seed/dev/800/600" 
                   alt="Desenvolvimento" 
                   className="w-full h-full"
@@ -732,6 +780,7 @@ export default function App() {
               <div className="md:w-1/2 rounded-3xl overflow-hidden shadow-2xl">
                 <EditableImage 
                   id="emplacamento-img"
+                  isDev={isDev}
                   defaultSrc="https://picsum.photos/seed/emplacamento/800/600" 
                   alt="Emplacamento" 
                   className="w-full h-full"
@@ -927,6 +976,7 @@ export default function App() {
                 <div key={i} className="aspect-square rounded-2xl overflow-hidden shadow-md hover:scale-105 transition-transform cursor-pointer">
                   <EditableImage 
                     id={`gallery-${i}`}
+                    isDev={isDev}
                     defaultSrc={`https://picsum.photos/seed/vale${i}/400/400`} 
                     alt={`Foto ${i}`} 
                     className="w-full h-full"
@@ -999,80 +1049,82 @@ export default function App() {
               </div>
             </div>
 
-            <div className="max-w-3xl mx-auto">
-              <div className="text-center mb-8">
-                <h3 className="text-2xl font-serif font-bold text-blue-900">Portal de Upload do Jaguar</h3>
-                <p className="text-emerald-700 mt-2 text-sm">Contribua com o acervo enviando seus próprios arquivos.</p>
-              </div>
-              {/* Upload Zone */}
-              <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-                className={cn(
-                  "relative border-2 border-dashed rounded-[2rem] p-12 text-center transition-all duration-300",
-                  isDragging ? "border-amber-500 bg-amber-50" : "border-pink-200 bg-pink-50/30 hover:bg-pink-50"
-                )}
-              >
-                <input
-                  type="file"
-                  multiple
-                  onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500">
-                    <Upload className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-bold text-blue-900">Arraste seus arquivos aqui</p>
-                    <p className="text-sm text-emerald-600">Ou clique para selecionar imagens, vídeos e documentos</p>
-                  </div>
-                  <div className="flex gap-4 mt-2">
-                    <ImageIcon className="w-5 h-5 text-pink-400" />
-                    <Video className="w-5 h-5 text-blue-400" />
-                    <File className="w-5 h-5 text-emerald-400" />
+            {isDev && (
+              <div className="max-w-3xl mx-auto">
+                <div className="text-center mb-8">
+                  <h3 className="text-2xl font-serif font-bold text-blue-900">Portal de Upload do Jaguar</h3>
+                  <p className="text-emerald-700 mt-2 text-sm">Contribua com o acervo enviando seus próprios arquivos.</p>
+                </div>
+                {/* Upload Zone */}
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                  onDragLeave={() => setIsDragging(false)}
+                  onDrop={handleDrop}
+                  className={cn(
+                    "relative border-2 border-dashed rounded-[2rem] p-12 text-center transition-all duration-300",
+                    isDragging ? "border-amber-500 bg-amber-50" : "border-pink-200 bg-pink-50/30 hover:bg-pink-50"
+                  )}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    onChange={handleFileChange}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="flex flex-col items-center gap-4">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500">
+                      <Upload className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-blue-900">Arraste seus arquivos aqui</p>
+                      <p className="text-sm text-emerald-600">Ou clique para selecionar imagens, vídeos e documentos</p>
+                    </div>
+                    <div className="flex gap-4 mt-2">
+                      <ImageIcon className="w-5 h-5 text-pink-400" />
+                      <Video className="w-5 h-5 text-blue-400" />
+                      <File className="w-5 h-5 text-emerald-400" />
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* File List */}
-              {uploadedFiles.length > 0 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="mt-8 space-y-3"
-                >
-                  <h3 className="font-bold text-blue-900 flex items-center gap-2">
-                    Arquivos Selecionados ({uploadedFiles.length})
-                  </h3>
-                  <div className="grid gap-3">
-                    {uploadedFiles.map((file, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-white border border-pink-100 rounded-xl shadow-sm">
-                        <div className="flex items-center gap-3 overflow-hidden">
-                          {file.type.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-pink-400 shrink-0" /> :
-                           file.type.startsWith('video/') ? <Video className="w-5 h-5 text-blue-400 shrink-0" /> :
-                           <File className="w-5 h-5 text-emerald-400 shrink-0" />}
-                          <span className="text-sm font-medium text-emerald-800 truncate">{file.name}</span>
-                          <span className="text-xs text-emerald-500 shrink-0">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                {/* File List */}
+                {uploadedFiles.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-8 space-y-3"
+                  >
+                    <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                      Arquivos Selecionados ({uploadedFiles.length})
+                    </h3>
+                    <div className="grid gap-3">
+                      {uploadedFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-4 bg-white border border-pink-100 rounded-xl shadow-sm">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                            {file.type.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-pink-400 shrink-0" /> :
+                             file.type.startsWith('video/') ? <Video className="w-5 h-5 text-blue-400 shrink-0" /> :
+                             <File className="w-5 h-5 text-emerald-400 shrink-0" />}
+                            <span className="text-sm font-medium text-emerald-800 truncate">{file.name}</span>
+                            <span className="text-xs text-emerald-500 shrink-0">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                          </div>
+                          <button
+                            onClick={() => removeFile(idx)}
+                            className="p-1 hover:bg-pink-50 rounded-full text-rose-500 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => removeFile(idx)}
-                          className="p-1 hover:bg-pink-50 rounded-full text-rose-500 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex justify-end mt-6">
-                    <button className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg">
-                      Enviar Arquivos para o Acervo
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-end mt-6">
+                      <button className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg">
+                        Enviar Arquivos para o Acervo
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            )}
           </div>
         </section>
 
@@ -1115,6 +1167,7 @@ export default function App() {
                   <div className="aspect-video overflow-hidden">
                     <EditableImage 
                       id={`blog-${idx}`}
+                      isDev={isDev}
                       defaultSrc={post.image} 
                       alt={post.title} 
                       className="w-full h-full group-hover:scale-105 transition-transform duration-500"
@@ -1140,6 +1193,7 @@ export default function App() {
             <div className="inline-block p-4 bg-white rounded-full shadow-sm mb-8">
               <EditableImage 
                 id="guarantee-seal"
+                isDev={isDev}
                 defaultSrc="https://cdn-icons-png.flaticon.com/512/1041/1041916.png" 
                 alt="Selo de Garantia" 
                 className="w-16 h-16"
@@ -1278,13 +1332,16 @@ export default function App() {
                 <p className="text-emerald-700 text-sm">Acesse sua jornada espiritual</p>
               </div>
 
-              <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+              <form className="space-y-6" onSubmit={handleLogin}>
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-emerald-800 uppercase tracking-wider ml-1">E-mail</label>
                   <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
                     <input 
                       type="email" 
+                      required
+                      value={loginData.email}
+                      onChange={(e) => setLoginData({...loginData, email: e.target.value})}
                       placeholder="seu@email.com"
                       className="w-full pl-12 pr-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
                     />
@@ -1297,6 +1354,9 @@ export default function App() {
                     <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
                     <input 
                       type="password" 
+                      required
+                      value={loginData.password}
+                      onChange={(e) => setLoginData({...loginData, password: e.target.value})}
                       placeholder="••••••••"
                       className="w-full pl-12 pr-4 py-4 bg-pink-50 border border-pink-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all text-emerald-900"
                     />
@@ -1336,12 +1396,14 @@ export default function App() {
       <footer className="py-12 bg-pink-50 border-t border-pink-200">
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex flex-col items-center gap-6 mb-8">
-            <button 
-              onClick={resetAllImages}
-              className="flex items-center gap-2 text-xs font-bold text-emerald-600 hover:text-amber-600 transition-colors uppercase tracking-widest"
-            >
-              <RefreshCw className="w-4 h-4" /> Resetar Todas as Imagens do Site
-            </button>
+            {isDev && (
+              <button 
+                onClick={resetAllImages}
+                className="flex items-center gap-2 text-xs font-bold text-emerald-600 hover:text-amber-600 transition-colors uppercase tracking-widest"
+              >
+                <RefreshCw className="w-4 h-4" /> Resetar Todas as Imagens do Site
+              </button>
+            )}
             <div className="flex items-center justify-center gap-2">
               <Sun className="w-6 h-6 text-amber-500" />
               <span className="font-serif italic text-lg font-bold text-blue-900">Vale do Amanhecer</span>
