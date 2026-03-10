@@ -13,7 +13,18 @@ import {
   CheckCircle2, 
   PlayCircle,
   Award,
-  BookOpen
+  BookOpen,
+  Upload,
+  File,
+  Video,
+  Image as ImageIcon,
+  X,
+  ChevronDown,
+  Share2,
+  Mail,
+  Facebook,
+  Twitter,
+  Link as LinkIcon
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -23,6 +34,36 @@ function cn(...inputs: ClassValue[]) {
 }
 
 export default function App() {
+  const [uploadedFiles, setUploadedFiles] = React.useState<File[]>([]);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [showShareOptions, setShowShareOptions] = React.useState(false);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setUploadedFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files) {
+      setUploadedFiles(prev => [...prev, ...Array.from(e.dataTransfer.files)]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setUploadedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareTitle = "O Segredo da Cura que Tia Neiva Revelou";
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(shareUrl);
+    alert("Link copiado para a área de transferência!");
+  };
+
   return (
     <div className="min-h-screen bg-pink-50 font-sans text-emerald-900 selection:bg-pink-200">
       {/* Navigation / Header */}
@@ -34,17 +75,33 @@ export default function App() {
               Vale do Amanhecer
             </span>
           </div>
-          <div className="hidden lg:flex gap-4 text-[10px] font-bold text-emerald-700 uppercase tracking-wider">
-            <a href="#beneficios" className="hover:text-blue-600 transition-colors">Benefícios</a>
-            <a href="#historia" className="hover:text-blue-600 transition-colors">História</a>
-            <a href="#desenvolvimento" className="hover:text-blue-600 transition-colors">Desenvolvimento</a>
-            <a href="#emplacamento" className="hover:text-blue-600 transition-colors">Emplacamento</a>
-            <a href="#iniciacao" className="hover:text-blue-600 transition-colors">Iniciação</a>
-            <a href="#elevacao" className="hover:text-blue-600 transition-colors">Elevação</a>
-            <a href="#pre-centuria" className="hover:text-blue-600 transition-colors">Pré Centuria</a>
-            <a href="#mantras" className="hover:text-blue-600 transition-colors">Mantras</a>
-            <a href="#musicas-ciganas" className="hover:text-blue-600 transition-colors">Ciganas</a>
-            <a href="#fotos" className="hover:text-blue-600 transition-colors">Fotos</a>
+          <div className="hidden lg:flex gap-8 text-xs font-bold text-emerald-700 uppercase tracking-wider">
+            <div className="group relative">
+              <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Doutrina <ChevronDown className="w-3 h-3" /></button>
+              <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
+                <a href="#historia" className="block py-2 hover:text-blue-600">Nossa História</a>
+                <a href="#beneficios" className="block py-2 hover:text-blue-600">Benefícios</a>
+              </div>
+            </div>
+            <div className="group relative">
+              <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Jornada <ChevronDown className="w-3 h-3" /></button>
+              <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
+                <a href="#desenvolvimento" className="block py-2 hover:text-blue-600">Desenvolvimento</a>
+                <a href="#emplacamento" className="block py-2 hover:text-blue-600">Emplacamento</a>
+                <a href="#iniciacao" className="block py-2 hover:text-blue-600">Iniciação</a>
+                <a href="#elevacao" className="block py-2 hover:text-blue-600">Elevação</a>
+                <a href="#pre-centuria" className="block py-2 hover:text-blue-600">Pré Centuria</a>
+              </div>
+            </div>
+            <div className="group relative">
+              <button className="hover:text-blue-600 transition-colors flex items-center gap-1">Acervo <ChevronDown className="w-3 h-3" /></button>
+              <div className="absolute top-full left-0 bg-white shadow-xl rounded-xl p-4 min-w-[200px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all border border-pink-100">
+                <a href="#mantras" className="block py-2 hover:text-blue-600">Mantras</a>
+                <a href="#musicas-ciganas" className="block py-2 hover:text-blue-600">Músicas Ciganas</a>
+                <a href="#fotos" className="block py-2 hover:text-blue-600">Galeria de Fotos</a>
+                <a href="#arquivos" className="block py-2 hover:text-blue-600">Portal de Arquivos</a>
+              </div>
+            </div>
             <a href="#blog" className="hover:text-blue-600 transition-colors">Blog</a>
           </div>
         </div>
@@ -98,6 +155,58 @@ export default function App() {
                 <p className="text-xl font-bold mb-2 drop-shadow-md">O Segredo da Cura que Tia Neiva Revelou</p>
                 <p className="text-sm opacity-80 max-w-md">Assista e descubra como elevar sua vibração e cumprir sua missão espiritual.</p>
               </div>
+
+              {/* Share Button */}
+              <div className="absolute top-4 right-4 z-20">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowShareOptions(!showShareOptions);
+                  }}
+                  className="p-3 bg-white/20 backdrop-blur-md hover:bg-white/40 rounded-full text-white transition-all shadow-lg"
+                >
+                  <Share2 className="w-5 h-5" />
+                </button>
+
+                {showShareOptions && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9, y: 10 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    className="absolute top-full right-0 mt-2 bg-white rounded-2xl shadow-2xl p-4 min-w-[200px] border border-pink-100"
+                  >
+                    <div className="flex flex-col gap-2">
+                      <a 
+                        href={`mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(shareUrl)}`}
+                        className="flex items-center gap-3 p-2 hover:bg-pink-50 rounded-lg text-emerald-800 transition-colors text-sm font-medium"
+                      >
+                        <Mail className="w-4 h-4 text-rose-500" /> E-mail
+                      </a>
+                      <a 
+                        href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-2 hover:bg-pink-50 rounded-lg text-emerald-800 transition-colors text-sm font-medium"
+                      >
+                        <Facebook className="w-4 h-4 text-blue-600" /> Facebook
+                      </a>
+                      <a 
+                        href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareTitle)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-2 hover:bg-pink-50 rounded-lg text-emerald-800 transition-colors text-sm font-medium"
+                      >
+                        <Twitter className="w-4 h-4 text-sky-500" /> Twitter
+                      </a>
+                      <button 
+                        onClick={copyToClipboard}
+                        className="flex items-center gap-3 p-2 hover:bg-pink-50 rounded-lg text-emerald-800 transition-colors text-sm font-medium w-full text-left"
+                      >
+                        <LinkIcon className="w-4 h-4 text-emerald-500" /> Copiar Link
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </div>
             </motion.div>
 
             <motion.div
@@ -114,6 +223,32 @@ export default function App() {
                 <ShieldCheck className="w-4 h-4" /> Acesso imediato ao portal de estudos
               </p>
             </motion.div>
+          </div>
+        </section>
+
+        {/* História Section */}
+        <section id="historia" className="py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Nossa História</h2>
+              <p className="text-emerald-700">A trajetória de Tia Neiva e a fundação do Vale do Amanhecer.</p>
+            </div>
+            <div className="grid md:grid-cols-2 gap-12 items-center">
+              <div className="rounded-3xl overflow-hidden shadow-xl">
+                <img src="https://picsum.photos/seed/history/800/1000" alt="História do Vale" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+              <div className="space-y-6 text-emerald-800 leading-relaxed">
+                <p>
+                  Tudo começou com a clarividência de Neiva Chaves Zelaya, carinhosamente conhecida como Tia Neiva. Em 1959, ela iniciou sua missão espiritual que culminaria na fundação do Vale do Amanhecer.
+                </p>
+                <p>
+                  A Doutrina do Amanhecer é um sistema de vida espiritual que busca o equilíbrio do ser humano através do conhecimento de si mesmo e da caridade incondicional.
+                </p>
+                <div className="p-6 bg-pink-50 rounded-2xl border-l-4 border-emerald-500 italic">
+                  "Minha missão é preparar o homem para a Nova Era, através do amor e do perdão." - Tia Neiva
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -169,28 +304,12 @@ export default function App() {
           </div>
         </section>
 
-        {/* Guarantee Section */}
-        <section id="garantia" className="py-24 bg-pink-100">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <div className="inline-block p-4 bg-white rounded-full shadow-sm mb-8">
-              <img 
-                src="https://cdn-icons-png.flaticon.com/512/1041/1041916.png" 
-                alt="Selo de Garantia" 
-                className="w-16 h-16"
-                referrerPolicy="no-referrer"
-              />
-            </div>
-            <h2 className="text-3xl font-serif font-bold text-blue-900 mb-6">Sua Missão Sem Riscos</h2>
-            <p className="text-lg text-emerald-800 mb-8 leading-relaxed">
-              Temos tanta confiança nos estudos deixados por Tia Neiva que oferecemos uma 
-              <span className="font-bold"> Garantia Incondicional de 7 Dias</span>. Se por qualquer motivo você sentir que este conhecimento não é para você, devolvemos seu investimento integralmente. Sem perguntas, sem burocracia.
-            </p>
-            <div className="flex flex-wrap justify-center gap-4 text-sm font-medium text-blue-800">
-              <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Satisfação Garantida</span>
-              <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Risco Zero</span>
-              <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Compromisso Espiritual</span>
-            </div>
-          </div>
+
+
+        {/* Jornada do Jaguar Header */}
+        <section className="py-12 bg-blue-900 text-white text-center">
+          <h2 className="text-3xl md:text-5xl font-serif font-bold mb-4">A Jornada do Jaguar</h2>
+          <p className="text-pink-100 max-w-2xl mx-auto">Conheça os degraus da evolução mediúnica em nossa doutrina.</p>
         </section>
 
         {/* Desenvolvimento Section */}
@@ -308,31 +427,7 @@ export default function App() {
           </div>
         </section>
 
-        {/* História Section */}
-        <section id="historia" className="py-24 bg-white">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Nossa História</h2>
-              <p className="text-emerald-700">A trajetória de Tia Neiva e a fundação do Vale do Amanhecer.</p>
-            </div>
-            <div className="grid md:grid-cols-2 gap-12 items-center">
-              <div className="rounded-3xl overflow-hidden shadow-xl">
-                <img src="https://picsum.photos/seed/history/800/1000" alt="História do Vale" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-              </div>
-              <div className="space-y-6 text-emerald-800 leading-relaxed">
-                <p>
-                  Tudo começou com a clarividência de Neiva Chaves Zelaya, carinhosamente conhecida como Tia Neiva. Em 1959, ela iniciou sua missão espiritual que culminaria na fundação do Vale do Amanhecer.
-                </p>
-                <p>
-                  A Doutrina do Amanhecer é um sistema de vida espiritual que busca o equilíbrio do ser humano através do conhecimento de si mesmo e da caridade incondicional.
-                </p>
-                <div className="p-6 bg-pink-50 rounded-2xl border-l-4 border-emerald-500 italic">
-                  "Minha missão é preparar o homem para a Nova Era, através do amor e do perdão." - Tia Neiva
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+
 
         {/* Mantras Section */}
         <section id="mantras" className="py-24 bg-pink-50">
@@ -409,6 +504,87 @@ export default function App() {
           </div>
         </section>
 
+        {/* Portal de Arquivos Section */}
+        <section id="arquivos" className="py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl md:text-4xl font-serif font-bold text-blue-900 mb-4">Portal de Arquivos do Jaguar</h2>
+              <p className="text-emerald-700">Compartilhe e acesse materiais de estudo, vídeos e fotos da nossa doutrina.</p>
+            </div>
+
+            <div className="max-w-3xl mx-auto">
+              {/* Upload Zone */}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={cn(
+                  "relative border-2 border-dashed rounded-[2rem] p-12 text-center transition-all duration-300",
+                  isDragging ? "border-amber-500 bg-amber-50" : "border-pink-200 bg-pink-50/30 hover:bg-pink-50"
+                )}
+              >
+                <input
+                  type="file"
+                  multiple
+                  onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm text-amber-500">
+                    <Upload className="w-8 h-8" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-blue-900">Arraste seus arquivos aqui</p>
+                    <p className="text-sm text-emerald-600">Ou clique para selecionar imagens, vídeos e documentos</p>
+                  </div>
+                  <div className="flex gap-4 mt-2">
+                    <ImageIcon className="w-5 h-5 text-pink-400" />
+                    <Video className="w-5 h-5 text-blue-400" />
+                    <File className="w-5 h-5 text-emerald-400" />
+                  </div>
+                </div>
+              </div>
+
+              {/* File List */}
+              {uploadedFiles.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-8 space-y-3"
+                >
+                  <h3 className="font-bold text-blue-900 flex items-center gap-2">
+                    Arquivos Selecionados ({uploadedFiles.length})
+                  </h3>
+                  <div className="grid gap-3">
+                    {uploadedFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-4 bg-white border border-pink-100 rounded-xl shadow-sm">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                          {file.type.startsWith('image/') ? <ImageIcon className="w-5 h-5 text-pink-400 shrink-0" /> :
+                           file.type.startsWith('video/') ? <Video className="w-5 h-5 text-blue-400 shrink-0" /> :
+                           <File className="w-5 h-5 text-emerald-400 shrink-0" />}
+                          <span className="text-sm font-medium text-emerald-800 truncate">{file.name}</span>
+                          <span className="text-xs text-emerald-500 shrink-0">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                        </div>
+                        <button
+                          onClick={() => removeFile(idx)}
+                          className="p-1 hover:bg-pink-50 rounded-full text-rose-500 transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-6">
+                    <button className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg">
+                      Enviar Arquivos para o Acervo
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          </div>
+        </section>
+
         {/* Blog Section */}
         <section id="blog" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4">
@@ -463,6 +639,30 @@ export default function App() {
                   </div>
                 </motion.div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        {/* Guarantee Section */}
+        <section id="garantia" className="py-24 bg-pink-100">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <div className="inline-block p-4 bg-white rounded-full shadow-sm mb-8">
+              <img 
+                src="https://cdn-icons-png.flaticon.com/512/1041/1041916.png" 
+                alt="Selo de Garantia" 
+                className="w-16 h-16"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+            <h2 className="text-3xl font-serif font-bold text-blue-900 mb-6">Sua Missão Sem Riscos</h2>
+            <p className="text-lg text-emerald-800 mb-8 leading-relaxed">
+              Temos tanta confiança nos estudos deixados por Tia Neiva que oferecemos uma 
+              <span className="font-bold"> Garantia Incondicional de 7 Dias</span>. Se por qualquer motivo você sentir que este conhecimento não é para você, devolvemos seu investimento integralmente. Sem perguntas, sem burocracia.
+            </p>
+            <div className="flex flex-wrap justify-center gap-4 text-sm font-medium text-blue-800">
+              <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Satisfação Garantida</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Risco Zero</span>
+              <span className="flex items-center gap-1"><CheckCircle2 className="w-4 h-4" /> Compromisso Espiritual</span>
             </div>
           </div>
         </section>
