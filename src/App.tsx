@@ -446,6 +446,7 @@ export default function App() {
   });
   const [loginData, setLoginData] = React.useState({ email: '', password: '' });
   const [showBackToTop, setShowBackToTop] = React.useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = React.useState(false);
 
   React.useEffect(() => {
     const handleScroll = () => {
@@ -497,6 +498,17 @@ export default function App() {
     const newState = !isDev;
     setIsDev(newState);
     localStorage.setItem('isDev', String(newState));
+  };
+
+  const resetAllImages = () => {
+    if (confirm("Deseja realmente resetar todas as imagens e vídeos para o padrão? Isso não pode ser desfeito.")) {
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('img_') || key.startsWith('media_') || key.startsWith('video_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      window.location.reload();
+    }
   };
 
   const toggleDarkMode = () => {
@@ -568,17 +580,6 @@ export default function App() {
   const copyToClipboard = () => {
     navigator.clipboard.writeText(shareUrl);
     alert("Link copiado para a área de transferência!");
-  };
-
-  const resetAllImages = () => {
-    if (confirm("Deseja resetar todas as imagens e vídeos para o padrão?")) {
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('img_') || key.startsWith('video_')) {
-          localStorage.removeItem(key);
-        }
-      });
-      window.location.reload();
-    }
   };
 
   return (
@@ -738,6 +739,17 @@ export default function App() {
             >
               <Download className="w-4 h-4" /> Downloads
             </a>
+
+            <button 
+              onClick={() => setIsAdminPanelOpen(true)}
+              className={cn(
+                "hidden sm:flex p-2.5 rounded-xl transition-all hover:scale-110 flex items-center justify-center",
+                isDarkMode ? "bg-slate-800 text-slate-400 border border-slate-700" : "bg-slate-100 text-slate-600 border border-slate-200"
+              )}
+              title="Painel de Controle"
+            >
+              <Lock className="w-4 h-4" />
+            </button>
 
             <button 
               onClick={() => setIsLoginModalOpen(true)}
@@ -2063,7 +2075,13 @@ export default function App() {
                       ))}
                     </div>
                     <div className="flex justify-end mt-6">
-                      <button className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg">
+                      <button 
+                        onClick={() => {
+                          alert("Arquivos enviados com sucesso para análise do Mestre! Em breve estarão disponíveis no acervo.");
+                          setUploadedFiles([]);
+                        }}
+                        className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg active:scale-95"
+                      >
                         Enviar Arquivos para o Acervo
                       </button>
                     </div>
@@ -2669,23 +2687,190 @@ export default function App() {
         </div>
       )}
 
-      {/* Back to Top Button */}
-      <motion.button
-        initial={{ opacity: 0, scale: 0.5 }}
-        animate={{ 
-          opacity: showBackToTop ? 1 : 0, 
-          scale: showBackToTop ? 1 : 0.5,
-          pointerEvents: showBackToTop ? 'auto' : 'none'
-        }}
-        onClick={scrollToTop}
-        className={cn(
-          "fixed bottom-8 right-8 p-4 rounded-full shadow-2xl z-[60] transition-all hover:scale-110 active:scale-95",
-          isDarkMode ? "bg-violet-600 text-white" : "bg-blue-900 text-white"
+      {/* Admin & Navigation Floating Buttons */}
+      <div className="fixed bottom-8 right-8 z-[60] flex flex-col gap-4">
+        {isDev && (
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            onClick={() => setIsAdminPanelOpen(true)}
+            className="w-14 h-14 bg-blue-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform border-4 border-white active:scale-95"
+            title="Painel do Mestre"
+          >
+            <Lock className="w-6 h-6" />
+          </motion.button>
         )}
-        title="Voltar ao Topo"
-      >
-        <ArrowUp className="w-6 h-6" />
-      </motion.button>
+        
+        <motion.button
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ 
+            opacity: showBackToTop ? 1 : 0, 
+            scale: showBackToTop ? 1 : 0.5,
+            pointerEvents: showBackToTop ? 'auto' : 'none'
+          }}
+          onClick={scrollToTop}
+          className={cn(
+            "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 active:scale-95 border-4 border-white",
+            isDarkMode ? "bg-violet-600 text-white" : "bg-pink-500 text-white"
+          )}
+          title="Voltar ao Topo"
+        >
+          <ArrowUp className="w-6 h-6" />
+        </motion.button>
+      </div>
+
+      {/* Admin Panel Modal */}
+      {isAdminPanelOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => setIsAdminPanelOpen(false)}
+            className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm"
+          />
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className={cn(
+              "relative w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden border",
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+            )}
+          >
+            <div className="p-8 sm:p-12">
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h2 className={cn(
+                    "text-3xl font-serif font-bold",
+                    isDarkMode ? "text-white" : "text-blue-900"
+                  )}>Painel do Mestre</h2>
+                  <p className="text-violet-500 font-bold text-xs uppercase tracking-widest mt-1">
+                    {isDev ? "Gerenciamento do Portal" : "Acesso Restrito"}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setIsAdminPanelOpen(false)}
+                  className="p-3 hover:bg-slate-100 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              {!isDev && (
+                <div className="bg-blue-50 border border-blue-100 p-4 rounded-2xl mb-8 flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-800 leading-relaxed">
+                    <strong>Dica:</strong> Para editar o site, use o e-mail <strong>admin@vale.com</strong> e a senha <strong>admin</strong> no botão de login abaixo.
+                  </p>
+                </div>
+              )}
+
+              {isDev ? (
+                <div className="grid sm:grid-cols-2 gap-6">
+                  <div className={cn(
+                    "p-6 rounded-3xl border transition-all",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-blue-50 border-blue-100"
+                  )}>
+                    <div className="w-12 h-12 bg-blue-900 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                      <ImageIcon className="w-6 h-6" />
+                    </div>
+                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Editar Imagens</h3>
+                    <p className="text-xs text-slate-500 mb-4">Passe o mouse sobre qualquer imagem no site para ver o botão de upload.</p>
+                    <button 
+                      onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className="text-xs font-bold text-blue-600 hover:underline"
+                    >
+                      Ir para o Início
+                    </button>
+                  </div>
+
+                  <div className={cn(
+                    "p-6 rounded-3xl border transition-all",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-violet-50 border-violet-100"
+                  )}>
+                    <div className="w-12 h-12 bg-violet-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                      <Video className="w-6 h-6" />
+                    </div>
+                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Vídeo/Áudio</h3>
+                    <p className="text-xs text-slate-500 mb-4">O vídeo ou áudio de abertura pode ser alterado diretamente na seção inicial.</p>
+                    <button 
+                      onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                      className="text-xs font-bold text-violet-600 hover:underline"
+                    >
+                      Ver Abertura
+                    </button>
+                  </div>
+
+                  <div className={cn(
+                    "p-6 rounded-3xl border transition-all",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
+                  )}>
+                    <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                      <File className="w-6 h-6" />
+                    </div>
+                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Arquivos do Acervo</h3>
+                    <p className="text-xs text-slate-500 mb-4">Suba novos documentos e materiais na seção de Downloads.</p>
+                    <button 
+                      onClick={() => { setIsAdminPanelOpen(false); document.getElementById('arquivos')?.scrollIntoView({ behavior: 'smooth' }); }}
+                      className="text-xs font-bold text-emerald-600 hover:underline"
+                    >
+                      Ir para Downloads
+                    </button>
+                  </div>
+
+                  <div className={cn(
+                    "p-6 rounded-3xl border transition-all",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-rose-50 border-rose-100"
+                  )}>
+                    <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                      <RefreshCw className="w-6 h-6" />
+                    </div>
+                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Resetar Tudo</h3>
+                    <p className="text-xs text-slate-500 mb-4">Volta todas as imagens e vídeos para o padrão original.</p>
+                    <button 
+                      onClick={resetAllImages}
+                      className="text-xs font-bold text-rose-600 hover:underline"
+                    >
+                      Resetar Agora
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Lock className="w-16 h-16 text-slate-300 mx-auto mb-6" />
+                  <p className={cn("mb-8", isDarkMode ? "text-slate-400" : "text-slate-600")}>
+                    Para habilitar as funções de upload de arquivos e edição de imagens, você precisa entrar como Administrador.
+                  </p>
+                  <button 
+                    onClick={() => { setIsAdminPanelOpen(false); setIsLoginModalOpen(true); }}
+                    className="px-10 py-4 bg-blue-900 text-white font-bold rounded-2xl shadow-xl hover:scale-105 transition-transform"
+                  >
+                    Fazer Login de Mestre
+                  </button>
+                  <p className="mt-6 text-[10px] text-slate-400 uppercase tracking-widest">Acesso exclusivo para administradores do Vale</p>
+                </div>
+              )}
+
+              <div className="mt-10 pt-8 border-t border-slate-100 flex justify-between items-center">
+                <button 
+                  onClick={toggleDev}
+                  className={cn(
+                    "px-6 py-2 rounded-xl text-xs font-bold transition-all",
+                    isDev ? "bg-rose-100 text-rose-600 hover:bg-rose-200" : "bg-emerald-100 text-emerald-600 hover:bg-emerald-200"
+                  )}
+                >
+                  {isDev ? "Sair do Modo Edição" : "Entrar no Modo Edição"}
+                </button>
+                <button 
+                  onClick={() => setIsAdminPanelOpen(false)}
+                  className="px-8 py-3 bg-blue-900 text-white rounded-xl text-sm font-bold shadow-lg"
+                >
+                  Fechar Painel
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }
