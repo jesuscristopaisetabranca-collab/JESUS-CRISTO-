@@ -5,6 +5,7 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -38,7 +39,9 @@ import {
   Gem,
   Download,
   Menu,
-  Moon
+  Moon,
+  ArrowUp,
+  Youtube
 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -194,7 +197,7 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
           {videoSrc && (
             <button 
               onClick={togglePlay}
-              className="p-4 bg-amber-500 rounded-full text-white shadow-xl hover:scale-110 transition-transform"
+              className="p-4 bg-violet-500 rounded-full text-white shadow-xl hover:scale-110 transition-transform"
             >
               {isPlaying ? <X className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current" />}
             </button>
@@ -221,12 +224,152 @@ const EditableVideo: React.FC<EditableVideoProps> = ({ id, defaultSrc, className
   );
 };
 
+const LetterTranscriber: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
+  const [image, setImage] = React.useState<string | null>(null);
+  const [transcription, setTranscription] = React.useState<string>("");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const transcribeLetter = async () => {
+    if (!image) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const model = "gemini-3-flash-preview";
+      
+      const base64Data = image.split(',')[1];
+      
+      const response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            parts: [
+              { text: "Por favor, transcreva o texto desta carta. Mantenha a formatação original o máximo possível. Se houver termos específicos da Doutrina do Vale do Amanhecer, transcreva-os com cuidado. Responda apenas com a transcrição." },
+              { inlineData: { mimeType: "image/jpeg", data: base64Data } }
+            ]
+          }
+        ]
+      });
+
+      setTranscription(response.text || "Não foi possível transcrever a carta.");
+    } catch (err) {
+      console.error(err);
+      setError("Ocorreu um erro ao transcrever a carta. Verifique sua conexão ou tente novamente.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className={cn(
+      "p-8 rounded-[3rem] border shadow-xl transition-all",
+      isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+    )}>
+      <div className="flex items-center gap-3 mb-6">
+        <div className="p-3 bg-violet-500 rounded-2xl text-white">
+          <Sparkles className="w-6 h-6" />
+        </div>
+        <h3 className={cn(
+          "text-2xl font-serif font-bold",
+          isDarkMode ? "text-white" : "text-blue-900"
+        )}>Assistente de Transcrição de Cartas</h3>
+      </div>
+      
+      <div className="grid md:grid-cols-2 gap-8">
+        <div className="space-y-4">
+          <div className={cn(
+            "aspect-[3/4] rounded-2xl border-2 border-dashed flex flex-col items-center justify-center relative overflow-hidden",
+            isDarkMode ? "border-slate-800 bg-slate-950" : "border-pink-100 bg-pink-50/30"
+          )}>
+            {image ? (
+              <img src={image} alt="Carta" className="w-full h-full object-contain" />
+            ) : (
+              <div className="text-center p-6">
+                <ImageIcon className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
+                <p className={cn("text-sm", isDarkMode ? "text-slate-400" : "text-emerald-700")}>
+                  Faça o upload da imagem da carta para transcrição
+                </p>
+              </div>
+            )}
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageUpload}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
+          </div>
+          <button 
+            onClick={transcribeLetter}
+            disabled={!image || loading}
+            className={cn(
+              "w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg",
+              !image || loading ? "bg-slate-300 cursor-not-allowed" : "bg-violet-500 hover:bg-violet-600 text-white"
+            )}
+          >
+            {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
+            {loading ? "Transcrevendo..." : "Transcrever Carta"}
+          </button>
+        </div>
+
+        <div className="flex flex-col h-full">
+          <div className={cn(
+            "flex-1 p-6 rounded-2xl border min-h-[300px] relative overflow-y-auto max-h-[500px]",
+            isDarkMode ? "bg-slate-950 border-slate-800 text-slate-300" : "bg-pink-50/50 border-pink-100 text-emerald-900"
+          )}>
+            {transcription ? (
+              <div className="whitespace-pre-wrap font-serif leading-relaxed">
+                {transcription}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-center opacity-40">
+                <File className="w-12 h-12 mb-4" />
+                <p>O texto transcrito aparecerá aqui.</p>
+              </div>
+            )}
+            {error && (
+              <div className="absolute top-4 left-4 right-4 p-4 bg-rose-500/10 border border-rose-500/20 text-rose-500 rounded-xl text-sm">
+                {error}
+              </div>
+            )}
+          </div>
+          {transcription && (
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText(transcription);
+                alert("Transcrição copiada!");
+              }}
+              className="mt-4 flex items-center gap-2 text-sm font-bold text-blue-600 hover:text-blue-500 transition-colors ml-auto"
+            >
+              <LinkIcon className="w-4 h-4" /> Copiar Texto
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [uploadedFiles, setUploadedFiles] = React.useState<File[]>([]);
   const [isDragging, setIsDragging] = React.useState(false);
   const [showShareOptions, setShowShareOptions] = React.useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = React.useState(false);
+  const [isAcervoModalOpen, setIsAcervoModalOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+  const [acervoPassword, setAcervoPassword] = React.useState('');
   const [isDarkMode, setIsDarkMode] = React.useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('isDarkMode') === 'true';
@@ -240,6 +383,27 @@ export default function App() {
     return false;
   });
   const [loginData, setLoginData] = React.useState({ email: '', password: '' });
+  const [showBackToTop, setShowBackToTop] = React.useState(false);
+
+  React.useEffect(() => {
+    const handleScroll = () => {
+      if (window.scrollY > 400) {
+        setShowBackToTop(true);
+      } else {
+        setShowBackToTop(false);
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,11 +411,23 @@ export default function App() {
     if (loginData.email === 'admin@vale.com' && loginData.password === 'admin') {
       setIsDev(true);
       localStorage.setItem('isDev', 'true');
+      setIsLoggedIn(true);
       setIsLoginModalOpen(false);
       alert("Modo Desenvolvedor Ativado!");
     } else {
-      alert("Login realizado com sucesso! (Modo Visitante)");
+      setIsLoggedIn(true);
+      alert("Login realizado com sucesso!");
       setIsLoginModalOpen(false);
+    }
+  };
+
+  const handleAcervoAccess = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (acervoPassword === 'amanhecer') {
+      setIsAcervoModalOpen(false);
+      window.open('https://drive.google.com/drive/my-drive', '_blank');
+    } else {
+      alert("Senha incorreta! Solicite a senha ao seu Mestre.");
     }
   };
 
@@ -355,7 +531,7 @@ export default function App() {
       )}>
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Sun className="w-8 h-8 text-amber-500 fill-amber-500/20" />
+            <Sun className="w-8 h-8 text-violet-500 fill-violet-500/20" />
             <span className="font-serif italic text-xl font-bold tracking-tight text-blue-900">
               Vale do Amanhecer
             </span>
@@ -390,15 +566,28 @@ export default function App() {
               </div>
             </div>
             <a href="#blog" className="hover:text-blue-600 transition-colors">Blog</a>
+            <a href="#assistente-ia" className="hover:text-blue-600 transition-colors">Assistente IA</a>
             <a href="#perolas" className="hover:text-blue-600 transition-colors">Só as Pérolas</a>
             <a href="#contato" className="hover:text-blue-600 transition-colors">Contato</a>
           </div>
           <div className="flex items-center gap-4">
+            <a 
+              href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={cn(
+                "hidden sm:flex p-2 rounded-full transition-all hover:scale-110",
+                isDarkMode ? "text-rose-500 hover:bg-slate-800" : "text-rose-600 hover:bg-pink-200/50"
+              )}
+              title="Canal Oficial no YouTube"
+            >
+              <Youtube className="w-5 h-5" />
+            </a>
             <button 
               onClick={toggleDarkMode}
               className={cn(
                 "p-2 rounded-full transition-all hover:scale-110",
-                isDarkMode ? "bg-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.4)]" : "bg-blue-900 text-white"
+                isDarkMode ? "bg-violet-500 text-white shadow-[0_0_15px_rgba(139,92,246,0.4)]" : "bg-blue-900 text-white"
               )}
               title={isDarkMode ? "Modo Dia" : "Modo Noturno"}
             >
@@ -406,7 +595,7 @@ export default function App() {
             </button>
             <a 
               href="#arquivos"
-              className="flex px-4 sm:px-6 py-2 bg-amber-500 text-white text-[10px] sm:text-xs font-bold rounded-full hover:bg-amber-400 transition-all items-center gap-1 sm:gap-2 shadow-sm"
+              className="flex px-4 sm:px-6 py-2 bg-violet-500 text-white text-[10px] sm:text-xs font-bold rounded-full hover:bg-violet-400 transition-all items-center gap-1 sm:gap-2 shadow-sm"
             >
               <Download className="w-3 h-3 sm:w-4 h-4" /> Downloads
             </a>
@@ -455,6 +644,7 @@ export default function App() {
               <a href="#arquivos" className="block py-2 hover:text-blue-600">Downloads (Drive)</a>
             </div>
             <a href="#blog" className="block py-2 hover:text-blue-600">Blog</a>
+            <a href="#assistente-ia" className="block py-2 hover:text-blue-600">Assistente IA</a>
             <a href="#perolas" className="block py-2 hover:text-blue-600">Só as Pérolas</a>
             <a href="#contato" className="block py-2 hover:text-blue-600">Contato</a>
             <button 
@@ -463,6 +653,16 @@ export default function App() {
             >
               <User className="w-4 h-4" /> Entrar
             </button>
+            <div className="pt-4 border-t border-pink-100 flex items-center gap-4">
+              <a 
+                href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-rose-600"
+              >
+                <Youtube className="w-5 h-5" /> Canal Oficial
+              </a>
+            </div>
           </div>
         </motion.div>
       </nav>
@@ -498,7 +698,7 @@ export default function App() {
               </span>
               <h2 className={cn(
                 "text-2xl md:text-3xl font-serif font-bold mb-4 uppercase tracking-wider",
-                isDarkMode ? "text-amber-500" : "text-emerald-600"
+                isDarkMode ? "text-violet-500" : "text-emerald-600"
               )}>
                 Vale do Amanhecer: A Luz da Nova Era
               </h2>
@@ -506,7 +706,7 @@ export default function App() {
                 "text-4xl md:text-6xl font-serif font-bold leading-[1.1] mb-6",
                 isDarkMode ? "text-white" : "text-blue-900"
               )}>
-                Doutrinador: Domine a Ciência de Tia Neiva e <span className={isDarkMode ? "text-amber-400 italic" : "text-emerald-700 italic"}>Cumpra seu Dever Sagrado</span> — Porque Fora da Caridade não há Salvação.
+                Doutrinador: Domine a Ciência de Tia Neiva e <span className={isDarkMode ? "text-violet-400 italic" : "text-emerald-700 italic"}>Cumpra seu Dever Sagrado</span> — Porque Fora da Caridade não há Salvação.
               </h1>
               <p className={cn(
                 "text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed",
@@ -594,9 +794,9 @@ export default function App() {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="mt-12"
             >
-              <button className="group relative px-10 py-5 bg-amber-500 hover:bg-amber-600 text-white text-xl font-bold rounded-full shadow-[0_0_20px_rgba(245,158,11,0.4)] transition-all hover:-translate-y-1 active:scale-95">
+              <button className="group relative px-10 py-5 bg-violet-500 hover:bg-violet-600 text-white text-xl font-bold rounded-full shadow-[0_0_20px_rgba(139,92,246,0.4)] transition-all hover:-translate-y-1 active:scale-95">
                 Quero ser curado!
-                <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-amber-300 animate-pulse" />
+                <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-violet-300 animate-pulse" />
               </button>
               <p className="mt-4 text-sm text-emerald-600 flex items-center justify-center gap-2">
                 <ShieldCheck className="w-4 h-4" /> Acesso imediato ao portal de estudos
@@ -613,42 +813,337 @@ export default function App() {
           <div className="max-w-7xl mx-auto px-4">
             <div className="text-center mb-16">
               <h2 className={cn(
-                "text-3xl md:text-4xl font-serif font-bold mb-4",
+                "text-4xl md:text-5xl font-serif font-bold mb-6",
                 isDarkMode ? "text-white" : "text-blue-900"
               )}>Nossa História</h2>
-              <p className={isDarkMode ? "text-slate-400" : "text-emerald-700"}>A trajetória de Tia Neiva e a fundação do Vale do Amanhecer.</p>
+              <div className="w-24 h-1 bg-violet-500 mx-auto mb-8 rounded-full"></div>
+              <p className={cn(
+                "max-w-3xl mx-auto text-lg leading-relaxed",
+                isDarkMode ? "text-slate-400" : "text-emerald-700"
+              )}>
+                A trajetória de Tia Neiva e a fundação do Vale do Amanhecer é uma jornada de fé, 
+                clarividência e amor incondicional que transformou a vida de milhares de pessoas.
+              </p>
             </div>
-            <div className="grid md:grid-cols-2 gap-12 items-center">
-              <div className={cn(
-                "rounded-3xl overflow-hidden shadow-xl",
-                isDarkMode ? "border-4 border-slate-800" : ""
-              )}>
-                <EditableImage 
-                  id="history-img"
-                  isDev={isDev}
-                  defaultSrc="https://picsum.photos/seed/history/800/1000" 
-                  alt="História do Vale" 
-                  className="w-full h-full"
-                />
-              </div>
-              <div className={cn(
-                "space-y-6 leading-relaxed",
-                isDarkMode ? "text-slate-300" : "text-emerald-800"
-              )}>
-                <p>
-                  Tudo começou com a clarividência de Neiva Chaves Zelaya, carinhosamente conhecida como Tia Neiva. Em 1959, ela iniciou sua missão espiritual que culminaria na fundação do Vale do Amanhecer.
-                </p>
-                <p>
-                  A Doutrina do Amanhecer é um sistema de vida espiritual que busca o equilíbrio do ser humano através do conhecimento de si mesmo e da caridade incondicional.
-                </p>
+
+            {/* Timeline Section */}
+            <div className="mb-24">
+              <h3 className={cn(
+                "text-2xl font-serif font-bold mb-12 text-center",
+                isDarkMode ? "text-violet-300" : "text-blue-800"
+              )}>Marcos Históricos</h3>
+              
+              <div className="relative">
+                {/* Vertical Line */}
                 <div className={cn(
-                  "p-6 rounded-2xl border-l-4 italic",
-                  isDarkMode ? "bg-slate-800 border-amber-500 text-amber-200" : "bg-pink-50 border-emerald-500 text-emerald-800"
-                )}>
-                  "Minha missão é preparar o homem para a Nova Era, através do amor e do perdão." - Tia Neiva
+                  "absolute left-1/2 -translate-x-1/2 h-full w-0.5 hidden md:block",
+                  isDarkMode ? "bg-slate-800" : "bg-pink-100"
+                )}></div>
+
+                <div className="space-y-12">
+                  {[
+                    {
+                      year: "1959",
+                      title: "O Início da Missão",
+                      desc: "Tia Neiva inicia sua jornada espiritual e clarividência em Alexânia, Goiás, fundando a União Espiritualista Seta Branca (UESB).",
+                      side: "left"
+                    },
+                    {
+                      year: "1964",
+                      title: "Taguatinga",
+                      desc: "A comunidade se transfere para Taguatinga, onde a doutrina começa a se estruturar e atrair os primeiros médiuns.",
+                      side: "right"
+                    },
+                    {
+                      year: "1969",
+                      title: "Fundação do Vale",
+                      desc: "Ocupação da área atual em Planaltina, DF. Início da construção do Templo Mãe e das primeiras casas.",
+                      side: "left"
+                    },
+                    {
+                      year: "1970",
+                      title: "Mário Sassi",
+                      desc: "Mário Sassi (Trino Tumuchy) une-se à missão, trazendo a sistematização intelectual e escrita da doutrina.",
+                      side: "right"
+                    },
+                    {
+                      year: "1985",
+                      title: "O Legado",
+                      desc: "Passagem de Tia Neiva para o plano espiritual, deixando um legado consolidado e uma hierarquia estruturada.",
+                      side: "left"
+                    }
+                  ].map((item, idx) => (
+                    <div key={idx} className={cn(
+                      "relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group",
+                      item.side === 'left' ? "md:flex-row-reverse" : "md:flex-row"
+                    )}>
+                      <div className="hidden md:block w-1/2"></div>
+                      <div className={cn(
+                        "absolute left-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-4 z-10 transition-all group-hover:scale-150 hidden md:block",
+                        isDarkMode ? "bg-slate-900 border-violet-500" : "bg-white border-violet-500"
+                      )}></div>
+                      <div className="w-full md:w-[45%]">
+                        <motion.div 
+                          initial={{ opacity: 0, y: 20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          className={cn(
+                            "p-8 rounded-3xl border transition-all hover:shadow-2xl",
+                            isDarkMode ? "bg-slate-800/50 border-slate-700 hover:border-violet-500/50" : "bg-pink-50/50 border-pink-100 hover:border-violet-200"
+                          )}
+                        >
+                          <span className="text-violet-500 font-bold text-xl mb-2 block">{item.year}</span>
+                          <h4 className={cn(
+                            "text-xl font-bold mb-3",
+                            isDarkMode ? "text-white" : "text-blue-900"
+                          )}>{item.title}</h4>
+                          <p className={cn(
+                            "text-sm leading-relaxed",
+                            isDarkMode ? "text-slate-400" : "text-emerald-800"
+                          )}>{item.desc}</p>
+                        </motion.div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
+
+            {/* Founders Section */}
+            <div className="grid md:grid-cols-2 gap-16 items-start mb-24">
+              <div className="space-y-8">
+                <div className="relative">
+                  <div className="absolute -top-4 -left-4 w-24 h-24 bg-violet-500/10 rounded-full blur-2xl"></div>
+                  <h3 className={cn(
+                    "text-3xl font-serif font-bold relative",
+                    isDarkMode ? "text-white" : "text-blue-900"
+                  )}>Tia Neiva</h3>
+                  <p className="text-violet-500 font-bold italic">A Clarividente do Amanhecer</p>
+                </div>
+                
+                <div className={cn(
+                  "rounded-[2.5rem] overflow-hidden shadow-2xl aspect-[4/5] relative group",
+                  isDarkMode ? "border-4 border-slate-800" : "border-8 border-white"
+                )}>
+                  <EditableImage 
+                    id="tia-neiva-history"
+                    isDev={isDev}
+                    defaultSrc="https://picsum.photos/seed/tianeiva/800/1000" 
+                    alt="Tia Neiva" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-8">
+                    <p className="text-white text-sm italic">"O amor é a única força que pode transformar o mundo."</p>
+                  </div>
+                </div>
+
+                <div className={cn(
+                  "space-y-4 leading-relaxed",
+                  isDarkMode ? "text-slate-300" : "text-emerald-800"
+                )}>
+                  <p>
+                    Neiva Chaves Zelaya nasceu em 1925 e, após ficar viúva com quatro filhos, 
+                    tornou-se motorista de caminhão para sustentá-los. Sua vida mudou drasticamente 
+                    em 1959, quando suas faculdades mediúnicas desabrocharam com uma intensidade sem precedentes.
+                  </p>
+                  <p>
+                    Como clarividente, ela conseguia ver o passado, o presente e o futuro, além de 
+                    se comunicar com entidades de alta hierarquia espiritual, como o Pai Seta Branca. 
+                    Sua missão foi fundar uma doutrina que unisse o conhecimento milenar à necessidade 
+                    do homem moderno.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-8 md:mt-24">
+                <div className="relative">
+                  <div className="absolute -top-4 -left-4 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl"></div>
+                  <h3 className={cn(
+                    "text-3xl font-serif font-bold relative",
+                    isDarkMode ? "text-white" : "text-blue-900"
+                  )}>Mário Sassi</h3>
+                  <p className="text-blue-500 font-bold italic">Trino Tumuchy</p>
+                </div>
+
+                <div className={cn(
+                  "rounded-[2.5rem] overflow-hidden shadow-2xl aspect-[4/5] relative group",
+                  isDarkMode ? "border-4 border-slate-800" : "border-8 border-white"
+                )}>
+                  <EditableImage 
+                    id="mario-sassi-history"
+                    isDev={isDev}
+                    defaultSrc="https://picsum.photos/seed/mariosassi/800/1000" 
+                    alt="Mário Sassi" 
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-8">
+                    <p className="text-white text-sm italic">O mestre que deu voz intelectual à doutrina.</p>
+                  </div>
+                </div>
+
+                <div className={cn(
+                  "space-y-4 leading-relaxed",
+                  isDarkMode ? "text-slate-300" : "text-emerald-800"
+                )}>
+                  <p>
+                    Mário Sassi foi o grande companheiro de missão de Tia Neiva. Intelectual, 
+                    escritor e mestre, ele foi responsável por transcrever e organizar os 
+                    ensinamentos recebidos por Neiva em uma estrutura doutrinária sólida.
+                  </p>
+                  <p>
+                    Como Trino Tumuchy, ele estabeleceu as bases filosóficas e as leis que 
+                    regem o Vale do Amanhecer, permitindo que a doutrina se expandisse de 
+                    forma organizada e fiel aos princípios originais.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Historical Gallery */}
+            <div className="mt-24">
+              <h3 className={cn(
+                "text-2xl font-serif font-bold mb-12 text-center",
+                isDarkMode ? "text-violet-300" : "text-blue-800"
+              )}>Acervo Fotográfico Original</h3>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div key={i} className={cn(
+                    "group relative aspect-square rounded-2xl overflow-hidden cursor-pointer",
+                    isDarkMode ? "bg-slate-800" : "bg-pink-100"
+                  )}>
+                    <EditableImage 
+                      id={`history-gallery-${i}`}
+                      isDev={isDev}
+                      defaultSrc={`https://picsum.photos/seed/hist-gal-${i}/600/600`}
+                      alt={`Foto Histórica ${i}`}
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    />
+                    <div className="absolute inset-0 bg-violet-500/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  </div>
+                ))}
+              </div>
+              <p className={cn(
+                "mt-6 text-center text-sm italic",
+                isDarkMode ? "text-slate-500" : "text-emerald-600"
+              )}>
+                Clique nas imagens acima (em modo desenvolvedor) para substituir por fotos originais do seu acervo.
+              </p>
+            </div>
+
+            {/* Historical Documents */}
+            <div className="mt-24 mb-12">
+              <div className="flex flex-col md:flex-row items-center justify-between mb-12 gap-6">
+                <div className="text-center md:text-left">
+                  <h3 className={cn(
+                    "text-2xl font-serif font-bold",
+                    isDarkMode ? "text-violet-300" : "text-blue-800"
+                  )}>Cartas e Documentos Originais</h3>
+                  <p className={cn(
+                    "text-sm mt-2",
+                    isDarkMode ? "text-slate-500" : "text-emerald-700"
+                  )}>Preservando a voz original da Clarividente.</p>
+                </div>
+                <div className="flex gap-4">
+                  <div className="p-3 bg-violet-500/10 rounded-2xl text-violet-500">
+                    <File className="w-6 h-6" />
+                  </div>
+                  <div className="p-3 bg-emerald-500/10 rounded-2xl text-emerald-500">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-8">
+                {[1, 2].map((i) => (
+                  <div key={i} className={cn(
+                    "p-6 rounded-[2rem] border flex gap-6 items-center group transition-all hover:shadow-xl",
+                    isDarkMode ? "bg-slate-800/50 border-slate-700" : "bg-white border-pink-100"
+                  )}>
+                    <div className="w-24 h-32 rounded-xl overflow-hidden flex-shrink-0 shadow-md">
+                      <EditableImage 
+                        id={`doc-thumb-${i}`}
+                        isDev={isDev}
+                        defaultSrc={`https://picsum.photos/seed/doc-${i}/200/300`}
+                        alt="Documento"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className={cn(
+                        "font-bold mb-2",
+                        isDarkMode ? "text-white" : "text-blue-900"
+                      )}>Documento Histórico {i === 1 ? 'A' : 'B'}</h4>
+                      <p className={cn(
+                        "text-xs leading-relaxed mb-4",
+                        isDarkMode ? "text-slate-400" : "text-emerald-700"
+                      )}>
+                        {i === 1 
+                          ? "Transcrição de carta original recebida por Tia Neiva em 1978 sobre a conduta do mestre." 
+                          : "Instruções originais para o ritual de Estrela Candente."}
+                      </p>
+                      <button className="text-violet-500 text-xs font-bold flex items-center gap-2 hover:underline">
+                        <Download className="w-3 h-3" /> Ver Documento Completo
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Additional Content Area */}
+            <div className={cn(
+              "p-12 rounded-[3rem] relative overflow-hidden",
+              isDarkMode ? "bg-slate-800/30 border border-slate-700" : "bg-violet-50/50 border border-violet-100"
+            )}>
+              <div className="absolute top-0 right-0 w-64 h-64 bg-violet-500/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+              
+              <div className="grid md:grid-cols-3 gap-12 relative z-10">
+                <div className="md:col-span-2 space-y-6">
+                  <h3 className={cn(
+                    "text-2xl font-serif font-bold",
+                    isDarkMode ? "text-white" : "text-blue-900"
+                  )}>A Missão Espiritual</h3>
+                  <div className={cn(
+                    "space-y-4 leading-relaxed",
+                    isDarkMode ? "text-slate-300" : "text-emerald-800"
+                  )}>
+                    <p>
+                      O Vale do Amanhecer não é apenas um local físico, mas um portal de 
+                      manipulação de energias. A missão principal é a desobsessão e o 
+                      encaminhamento de espíritos sofredores, além do despertar da 
+                      consciência mediúnica de seus membros.
+                    </p>
+                    <p>
+                      Através de rituais complexos e precisos, os médiuns (Doutrinadores e Aparás) 
+                      trabalham em conjunto para equilibrar as forças cármicas e trazer alívio 
+                      àqueles que buscam auxílio, seja no plano físico ou espiritual.
+                    </p>
+                  </div>
+                </div>
+                <div className="space-y-6">
+                  <div className={cn(
+                    "p-6 rounded-2xl border-l-4 italic h-full flex flex-col justify-center",
+                    isDarkMode ? "bg-slate-900 border-violet-500 text-violet-200" : "bg-white border-violet-500 text-emerald-800 shadow-sm"
+                  )}>
+                    <Quote className="w-8 h-8 text-violet-500/20 mb-4" />
+                    <p className="text-lg">"Minha missão é preparar o homem para a Nova Era, através do amor e do perdão."</p>
+                    <p className="mt-4 font-bold text-sm not-italic">— Tia Neiva</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Call to Action for more content */}
+            {isDev && (
+              <div className="mt-12 p-6 border-2 border-dashed border-violet-300 rounded-2xl text-center">
+                <p className="text-violet-500 font-bold mb-2">Área do Desenvolvedor</p>
+                <p className="text-sm text-slate-500 mb-4">Você pode adicionar mais seções ou materiais originais aqui editando o código.</p>
+                <button className="px-6 py-2 bg-violet-500 text-white rounded-full text-xs font-bold hover:bg-violet-600 transition-all">
+                  Adicionar Novo Bloco de História
+                </button>
+              </div>
+            )}
           </div>
         </section>
 
@@ -686,7 +1181,7 @@ export default function App() {
                   desc: "Fortaleça sua aura através do conhecimento iniciático e da manipulação correta das energias."
                 },
                 {
-                  icon: <Sun className={cn("w-8 h-8", isDarkMode ? "text-amber-400" : "text-amber-500")} />,
+                  icon: <Sun className={cn("w-8 h-8", isDarkMode ? "text-violet-400" : "text-violet-500")} />,
                   title: "Paz Interior",
                   desc: "Clareza mental e serenidade para conduzir trabalhos de desobsessão e cura."
                 },
@@ -773,7 +1268,7 @@ export default function App() {
                     "Sapiência milenar do Oriente e do Egito."
                   ].map((item, idx) => (
                     <div key={idx} className="flex items-center gap-3">
-                      <div className="w-6 h-6 bg-amber-500 rounded-full flex items-center justify-center text-white">
+                      <div className="w-6 h-6 bg-violet-500 rounded-full flex items-center justify-center text-white">
                         <CheckCircle2 className="w-4 h-4" />
                       </div>
                       <span className="text-emerald-900 font-medium">{item}</span>
@@ -808,7 +1303,7 @@ export default function App() {
         )}>
           <h2 className={cn(
             "text-3xl md:text-5xl font-serif font-bold mb-4",
-            isDarkMode ? "text-amber-500" : "text-white"
+            isDarkMode ? "text-violet-500" : "text-white"
           )}>A Jornada do Jaguar</h2>
           <p className={isDarkMode ? "text-slate-400" : "text-pink-100"}>Conheça os degraus da evolução mediúnica em nossa doutrina.</p>
         </section>
@@ -838,7 +1333,7 @@ export default function App() {
                     "Desenvolvimento da sensibilidade e percepção."
                   ].map((text, i) => (
                     <li key={i} className="flex items-start gap-3">
-                      <CheckCircle2 className={cn("w-5 h-5 mt-1 shrink-0", isDarkMode ? "text-amber-500" : "text-amber-500")} />
+                      <CheckCircle2 className={cn("w-5 h-5 mt-1 shrink-0", isDarkMode ? "text-violet-500" : "text-violet-500")} />
                       <span className={isDarkMode ? "text-slate-400" : "text-emerald-700"}>{text}</span>
                     </li>
                   ))}
@@ -880,7 +1375,7 @@ export default function App() {
                 </p>
                 <div className={cn(
                   "p-6 rounded-2xl border italic",
-                  isDarkMode ? "bg-slate-900 border-slate-800 text-amber-200" : "bg-white border-pink-200 shadow-sm text-emerald-700"
+                  isDarkMode ? "bg-slate-900 border-slate-800 text-violet-200" : "bg-white border-pink-200 shadow-sm text-emerald-700"
                 )}>
                   "O emplacamento é a assinatura do seu compromisso com o Pai Seta Branca."
                 </div>
@@ -933,7 +1428,7 @@ export default function App() {
                 <p className="text-xl text-pink-100 mb-8 max-w-2xl">
                   Um dos momentos mais sublimes na vida do Jaguar. A elevação representa o amadurecimento espiritual e a prontidão para trabalhos de maior envergadura.
                 </p>
-                <button className="px-8 py-4 bg-amber-500 text-white font-bold rounded-full hover:bg-amber-600 transition-all">
+                <button className="px-8 py-4 bg-violet-500 text-white font-bold rounded-full hover:bg-violet-600 transition-all">
                   Saiba mais sobre a Elevação
                 </button>
               </div>
@@ -995,7 +1490,7 @@ export default function App() {
                     "text-xl font-bold mb-4 flex items-center gap-2",
                     isDarkMode ? "text-white" : "text-blue-900"
                   )}>
-                    <Sun className="w-5 h-5 text-amber-500" /> {mantra.title}
+                    <Sun className="w-5 h-5 text-violet-500" /> {mantra.title}
                   </h3>
                   <p className={cn(
                     "italic leading-relaxed",
@@ -1011,7 +1506,7 @@ export default function App() {
         <section id="perolas" className="py-24 bg-blue-900 text-white scroll-mt-24 overflow-hidden relative">
           <div className="absolute top-0 left-0 w-full h-full opacity-5 pointer-events-none">
             <div className="absolute top-10 left-10 w-64 h-64 bg-white rounded-full blur-3xl" />
-            <div className="absolute bottom-10 right-10 w-64 h-64 bg-amber-500 rounded-full blur-3xl" />
+            <div className="absolute bottom-10 right-10 w-64 h-64 bg-violet-500 rounded-full blur-3xl" />
           </div>
           
           <div className="max-w-7xl mx-auto px-4 relative z-10">
@@ -1043,12 +1538,12 @@ export default function App() {
                   transition={{ delay: idx * 0.1 }}
                   className="break-inside-avoid p-8 bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl hover:bg-white/20 transition-all group"
                 >
-                  <Quote className="w-8 h-8 text-amber-400 mb-4 opacity-50 group-hover:opacity-100 transition-opacity" />
+                  <Quote className="w-8 h-8 text-violet-400 mb-4 opacity-50 group-hover:opacity-100 transition-opacity" />
                   <p className="text-lg font-medium leading-relaxed italic">
                     "{perola}"
                   </p>
-                  <div className="mt-6 flex items-center gap-2 text-xs font-bold text-amber-300 uppercase tracking-widest">
-                    <div className="w-8 h-[1px] bg-amber-300/50" />
+                  <div className="mt-6 flex items-center gap-2 text-xs font-bold text-violet-300 uppercase tracking-widest">
+                    <div className="w-8 h-[1px] bg-violet-300/50" />
                     Tia Neiva
                   </div>
                 </motion.div>
@@ -1155,7 +1650,7 @@ export default function App() {
               <div className="space-y-8">
                 {[
                   { icon: <BookOpen className="w-7 h-7" />, title: "Livros e Leis", desc: "Obras completas de Tia Neiva, leis do amanhecer e manuais de instrução para médiuns.", bg: "bg-blue-900" },
-                  { icon: <PlayCircle className="w-7 h-7" />, title: "Áudios e Mantras", desc: "Gravações originais de mantras, preces e instruções sonoras para harmonização.", bg: "bg-amber-500" },
+                  { icon: <PlayCircle className="w-7 h-7" />, title: "Áudios e Mantras", desc: "Gravações originais de mantras, preces e instruções sonoras para harmonização.", bg: "bg-violet-500" },
                   { icon: <File className="w-7 h-7" />, title: "Materiais de Estudo", desc: "Apostilas de desenvolvimento, iniciação, elevação e centúria para sua jornada.", bg: "bg-emerald-500" }
                 ].map((item, i) => (
                   <div key={i} className={cn(
@@ -1188,27 +1683,35 @@ export default function App() {
               )}>
                 <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-white/10 transition-all"></div>
                 <div className="relative z-10">
-                  <Sun className="w-16 h-16 text-amber-400 mx-auto mb-6 animate-pulse" />
+                  <Sun className="w-16 h-16 text-violet-400 mx-auto mb-6 animate-pulse" />
                   <h3 className="text-3xl font-serif font-bold mb-4">Acesso ao Acervo Completo</h3>
                   <p className={isDarkMode ? "text-slate-300 mb-8 leading-relaxed" : "text-blue-100 mb-8 leading-relaxed"}>
                     Clique no botão abaixo para ser redirecionado ao nosso Google Drive oficial com todos os materiais da Doutrina do Amanhecer.
                   </p>
-                  <a 
-                    href="https://drive.google.com/drive/my-drive" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 px-10 py-5 bg-amber-500 text-white font-bold rounded-full hover:bg-amber-400 hover:scale-105 transition-all shadow-xl"
+                  <button 
+                    onClick={() => {
+                      if (!isLoggedIn) {
+                        setIsLoginModalOpen(true);
+                      } else {
+                        setIsAcervoModalOpen(true);
+                      }
+                    }}
+                    className="inline-flex items-center gap-3 px-10 py-5 bg-violet-500 text-white font-bold rounded-full hover:bg-violet-400 hover:scale-105 transition-all shadow-xl"
                   >
                     <LinkIcon className="w-6 h-6" /> Acessar Google Drive
-                  </a>
+                  </button>
                   <p className={cn(
                     "mt-6 text-xs",
                     isDarkMode ? "text-slate-500" : "text-blue-300"
                   )}>
-                    * Requer conta Google para visualização e download.
+                    * Requer login e senha de acesso ao material.
                   </p>
                 </div>
               </div>
+            </div>
+
+            <div id="assistente-ia" className="mt-24 scroll-mt-24">
+              <LetterTranscriber isDarkMode={isDarkMode} />
             </div>
 
             {isDev && (
@@ -1227,8 +1730,8 @@ export default function App() {
                   onDrop={handleDrop}
                   className={cn(
                     "relative border-2 border-dashed rounded-[2rem] p-12 text-center transition-all duration-300",
-                    isDragging ? "border-amber-500 bg-amber-50" : 
-                    isDarkMode ? "border-slate-800 bg-slate-900/50 hover:bg-slate-900" : "border-pink-200 bg-pink-50/30 hover:bg-pink-50"
+                    isDragging ? "border-violet-500 bg-violet-50" : 
+                      isDarkMode ? "border-slate-800 bg-slate-900/50 hover:bg-slate-900" : "border-pink-200 bg-pink-50/30 hover:bg-pink-50"
                   )}
                 >
                   <input
@@ -1239,7 +1742,7 @@ export default function App() {
                   />
                   <div className="flex flex-col items-center gap-4">
                     <div className={cn(
-                      "w-16 h-16 rounded-full flex items-center justify-center shadow-sm text-amber-500",
+                      "w-16 h-16 rounded-full flex items-center justify-center shadow-sm text-violet-500",
                       isDarkMode ? "bg-slate-800" : "bg-white"
                     )}>
                       <Upload className="w-8 h-8" />
@@ -1363,13 +1866,16 @@ export default function App() {
                       isDev={isDev}
                       defaultSrc={post.image} 
                       alt={post.title} 
-                      className="w-full h-full group-hover:scale-105 transition-transform duration-500"
+                      className={cn(
+                        "w-full h-full transition-transform duration-500",
+                        idx === 0 ? "object-cover group-hover:scale-105" : "group-hover:scale-105"
+                      )}
                     />
                   </div>
                   <div className="p-6">
                     <span className={cn(
                       "text-xs font-bold uppercase tracking-wider",
-                      isDarkMode ? "text-amber-500" : "text-emerald-600"
+                      isDarkMode ? "text-violet-500" : "text-emerald-600"
                     )}>{post.date}</span>
                     <h3 className={cn(
                       "text-xl font-bold mt-2 mb-3 group-hover:text-blue-600 transition-colors",
@@ -1381,7 +1887,7 @@ export default function App() {
                     )}>{post.excerpt}</p>
                     <a href="#" className={cn(
                       "font-bold text-sm flex items-center gap-1 hover:gap-2 transition-all",
-                      isDarkMode ? "text-amber-500" : "text-blue-600"
+                      isDarkMode ? "text-violet-500" : "text-blue-600"
                     )}>
                       Ler mais <Sparkles className="w-4 h-4" />
                     </a>
@@ -1459,7 +1965,7 @@ export default function App() {
                   <h3 className="text-2xl font-serif font-bold mb-8">Informações</h3>
                   <div className="space-y-6">
                     <div className="flex items-start gap-4">
-                      <Sun className="w-6 h-6 text-amber-500 shrink-0" />
+                      <Sun className="w-6 h-6 text-violet-500 shrink-0" />
                       <div>
                         <p className="font-bold text-sm">Vale do Amanhecer</p>
                         <p className="text-xs opacity-70">Planaltina, DF - Brasil</p>
@@ -1494,7 +2000,7 @@ export default function App() {
                           type="text" 
                           placeholder="Seu nome completo"
                           className={cn(
-                            "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all border",
+                            "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
                             isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
                           )}
                         />
@@ -1508,7 +2014,7 @@ export default function App() {
                           type="email" 
                           placeholder="seu@email.com"
                           className={cn(
-                            "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all border",
+                            "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
                             isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
                           )}
                         />
@@ -1523,7 +2029,7 @@ export default function App() {
                         type="text" 
                         placeholder="Como podemos ajudar?"
                         className={cn(
-                          "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all border",
+                          "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
                           isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
                         )}
                       />
@@ -1537,14 +2043,14 @@ export default function App() {
                         rows={4}
                         placeholder="Escreva sua mensagem aqui..."
                         className={cn(
-                          "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all border resize-none",
+                          "w-full px-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border resize-none",
                           isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
                         )}
                       ></textarea>
                     </div>
                     <button className={cn(
                       "w-full py-4 text-white font-bold rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2",
-                      isDarkMode ? "bg-amber-600 hover:bg-amber-500" : "bg-amber-500 hover:bg-amber-600"
+                      isDarkMode ? "bg-violet-600 hover:bg-violet-500" : "bg-violet-500 hover:bg-violet-600"
                     )}>
                       <Send className="w-5 h-5" /> Enviar Mensagem
                     </button>
@@ -1570,7 +2076,7 @@ export default function App() {
             )}>
               Não deixe para amanhã o cumprimento do seu dever espiritual. O Vale do Amanhecer espera por você.
             </p>
-            <button className="px-12 py-6 bg-amber-500 hover:bg-amber-600 text-white text-2xl font-bold rounded-full shadow-lg transition-all hover:scale-105 active:scale-95">
+            <button className="px-12 py-6 bg-violet-500 hover:bg-violet-600 text-white text-2xl font-bold rounded-full shadow-lg transition-all hover:scale-105 active:scale-95">
               Quero ser curado!
             </button>
           </div>
@@ -1600,7 +2106,7 @@ export default function App() {
                   "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4",
                   isDarkMode ? "bg-slate-800" : "bg-pink-100"
                 )}>
-                  <Sun className="w-8 h-8 text-amber-500" />
+                  <Sun className="w-8 h-8 text-violet-500" />
                 </div>
                 <h2 className={cn(
                   "text-2xl font-serif font-bold",
@@ -1615,7 +2121,7 @@ export default function App() {
                     "text-xs font-bold uppercase tracking-wider ml-1",
                     isDarkMode ? "text-slate-500" : "text-emerald-800"
                   )}>E-mail</label>
-                  <div className="relative">
+                      <div className="relative">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
                     <input 
                       type="email" 
@@ -1624,7 +2130,7 @@ export default function App() {
                       onChange={(e) => setLoginData({...loginData, email: e.target.value})}
                       placeholder="seu@email.com"
                       className={cn(
-                        "w-full pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all border",
+                        "w-full pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
                         isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
                       )}
                     />
@@ -1645,7 +2151,7 @@ export default function App() {
                       onChange={(e) => setLoginData({...loginData, password: e.target.value})}
                       placeholder="••••••••"
                       className={cn(
-                        "w-full pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all border",
+                        "w-full pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
                         isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
                       )}
                     />
@@ -1657,7 +2163,7 @@ export default function App() {
                     "flex items-center gap-2 cursor-pointer",
                     isDarkMode ? "text-slate-500" : "text-emerald-700"
                   )}>
-                    <input type="checkbox" className="rounded border-pink-200 text-amber-500 focus:ring-amber-500" />
+                    <input type="checkbox" className="rounded border-pink-200 text-violet-500 focus:ring-violet-500" />
                     Lembrar de mim
                   </label>
                   <a href="#" className="text-blue-600 font-bold hover:underline">Esqueceu a senha?</a>
@@ -1673,13 +2179,86 @@ export default function App() {
                   "text-sm",
                   isDarkMode ? "text-slate-400" : "text-emerald-700"
                 )}>
-                  Ainda não é um Jaguar? <a href="#" className="text-amber-600 font-bold hover:underline">Inicie sua jornada</a>
+                  Ainda não é um Jaguar? <a href="#" className="text-violet-600 font-bold hover:underline">Inicie sua jornada</a>
                 </p>
               </div>
             </div>
             
             <button 
               onClick={() => setIsLoginModalOpen(false)}
+              className={cn(
+                "absolute top-6 right-6 p-2 rounded-full text-emerald-400 transition-colors",
+                isDarkMode ? "hover:bg-slate-800" : "hover:bg-pink-50"
+              )}
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Acervo Password Modal */}
+      {isAcervoModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            onClick={() => setIsAcervoModalOpen(false)}
+            className="absolute inset-0 bg-blue-900/60 backdrop-blur-sm"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className={cn(
+              "relative w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden border",
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+            )}
+          >
+            <div className="p-8 md:p-12">
+              <div className="text-center mb-8">
+                <div className={cn(
+                  "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4",
+                  isDarkMode ? "bg-slate-800" : "bg-pink-100"
+                )}>
+                  <Lock className="w-8 h-8 text-violet-500" />
+                </div>
+                <h2 className={cn(
+                  "text-2xl font-serif font-bold",
+                  isDarkMode ? "text-white" : "text-blue-900"
+                )}>Senha de Acesso</h2>
+                <p className={isDarkMode ? "text-slate-400" : "text-emerald-700 text-sm"}>Digite a senha para acessar o material do Drive</p>
+              </div>
+
+              <form className="space-y-6" onSubmit={handleAcervoAccess}>
+                <div className="space-y-2">
+                  <label className={cn(
+                    "text-xs font-bold uppercase tracking-wider ml-1",
+                    isDarkMode ? "text-slate-500" : "text-emerald-800"
+                  )}>Senha do Acervo</label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
+                    <input 
+                      type="password" 
+                      required
+                      value={acervoPassword}
+                      onChange={(e) => setAcervoPassword(e.target.value)}
+                      placeholder="Digite a senha"
+                      className={cn(
+                        "w-full pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
+                        isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
+                      )}
+                    />
+                  </div>
+                </div>
+
+                <button className="w-full py-4 bg-violet-500 text-white font-bold rounded-2xl hover:bg-violet-600 transition-all shadow-lg flex items-center justify-center gap-2">
+                  <LogIn className="w-5 h-5" /> Acessar Material
+                </button>
+              </form>
+            </div>
+            
+            <button 
+              onClick={() => setIsAcervoModalOpen(false)}
               className={cn(
                 "absolute top-6 right-6 p-2 rounded-full text-emerald-400 transition-colors",
                 isDarkMode ? "hover:bg-slate-800" : "hover:bg-pink-50"
@@ -1702,18 +2281,35 @@ export default function App() {
                 onClick={resetAllImages}
                 className={cn(
                   "flex items-center gap-2 text-xs font-bold transition-colors uppercase tracking-widest",
-                  isDarkMode ? "text-rose-400 hover:text-rose-300" : "text-emerald-600 hover:text-amber-600"
+                  isDarkMode ? "text-rose-400 hover:text-rose-300" : "text-emerald-600 hover:text-violet-600"
                 )}
               >
                 <RefreshCw className="w-4 h-4" /> Resetar Todas as Imagens do Site
               </button>
             )}
             <div className="flex items-center justify-center gap-2">
-              <Sun className="w-6 h-6 text-amber-500" />
+              <Sun className="w-6 h-6 text-violet-500" />
               <span className={cn(
                 "font-serif italic text-lg font-bold",
                 isDarkMode ? "text-white" : "text-blue-900"
               )}>Vale do Amanhecer</span>
+            </div>
+            
+            <div className="flex flex-col items-center justify-center gap-4 mt-8">
+              <p className={cn(
+                "text-[10px] font-bold uppercase tracking-widest",
+                isDarkMode ? "text-slate-500" : "text-emerald-600"
+              )}>Acompanhe nosso Canal Oficial</p>
+              <a 
+                href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 px-8 py-4 bg-rose-600 text-white rounded-2xl transition-all hover:scale-105 hover:bg-rose-700 shadow-xl"
+                title="Canal Oficial no YouTube"
+              >
+                <Youtube className="w-6 h-6" />
+                <span className="font-bold text-sm">YouTube Amanhecer</span>
+              </a>
             </div>
           </div>
           <p className={cn(
@@ -1730,6 +2326,24 @@ export default function App() {
           </p>
         </div>
       </footer>
+
+      {/* Back to Top Button */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.5 }}
+        animate={{ 
+          opacity: showBackToTop ? 1 : 0, 
+          scale: showBackToTop ? 1 : 0.5,
+          pointerEvents: showBackToTop ? 'auto' : 'none'
+        }}
+        onClick={scrollToTop}
+        className={cn(
+          "fixed bottom-8 right-8 p-4 rounded-full shadow-2xl z-[60] transition-all hover:scale-110 active:scale-95",
+          isDarkMode ? "bg-violet-600 text-white" : "bg-blue-900 text-white"
+        )}
+        title="Voltar ao Topo"
+      >
+        <ArrowUp className="w-6 h-6" />
+      </motion.button>
     </div>
   );
 }
