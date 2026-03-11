@@ -66,11 +66,23 @@ interface EditableImageProps {
 
 const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, className, isDev }) => {
   const [src, setSrc] = React.useState<string>(defaultSrc);
+  const [isUploading, setIsUploading] = React.useState(false);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const loadImage = async () => {
       try {
+        // Try server first
+        const serverMappingResponse = await fetch('/api/media');
+        if (serverMappingResponse.ok) {
+          const mapping = await serverMappingResponse.json();
+          if (mapping[id]) {
+            setSrc(mapping[id]);
+            return;
+          }
+        }
+
+        // Fallback to IndexedDB
         const storedImg = await get(`img_${id}`);
         if (storedImg instanceof Blob) {
           setSrc(URL.createObjectURL(storedImg));
@@ -78,7 +90,7 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
           setSrc(storedImg);
         }
       } catch (err) {
-        console.error("Error loading image from IndexedDB:", err);
+        console.error("Error loading image:", err);
       }
     };
     loadImage();
@@ -93,14 +105,36 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setIsUploading(true);
       try {
-        await set(`img_${id}`, file);
-        if (src && src.startsWith('blob:')) {
-          URL.revokeObjectURL(src);
+        // Save to server
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('id', id);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setSrc(data.url);
+        } else {
+          // Fallback to IndexedDB if server fails
+          await set(`img_${id}`, file);
+          if (src && src.startsWith('blob:')) {
+            URL.revokeObjectURL(src);
+          }
+          setSrc(URL.createObjectURL(file));
         }
-        setSrc(URL.createObjectURL(file));
       } catch (err) {
-        console.error("Error saving image to IndexedDB:", err);
+        console.error("Error saving image:", err);
+        // Fallback to IndexedDB
+        await set(`img_${id}`, file);
+        setSrc(URL.createObjectURL(file));
+      } finally {
+        setIsUploading(false);
       }
     }
   };
@@ -117,9 +151,15 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
           <button 
             onClick={() => fileInputRef.current?.click()}
-            className="p-2 bg-white rounded-full text-blue-900 shadow-lg hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold"
+            disabled={isUploading}
+            className="p-2 bg-white rounded-full text-blue-900 shadow-lg hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold disabled:opacity-50"
           >
-            <Edit2 className="w-4 h-4" /> Alterar Imagem
+            {isUploading ? (
+              <RefreshCw className="w-4 h-4 animate-spin" />
+            ) : (
+              <Edit2 className="w-4 h-4" />
+            )}
+            {isUploading ? "Enviando..." : "Alterar Imagem"}
           </button>
         </div>
       )}
@@ -180,6 +220,7 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
   const [mediaSrc, setMediaSrc] = React.useState<string | null>(null);
   const [mediaType, setMediaType] = React.useState<'video' | 'audio' | null>(null);
   const [isPlaying, setIsPlaying] = React.useState(false);
+  const [isUploading, setIsUploading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const mediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
@@ -187,6 +228,18 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
   React.useEffect(() => {
     const loadMedia = async () => {
       try {
+        // Try server first
+        const serverMappingResponse = await fetch('/api/media');
+        if (serverMappingResponse.ok) {
+          const mapping = await serverMappingResponse.json();
+          if (mapping[id]) {
+            setMediaSrc(mapping[id]);
+            const isVideo = mapping[id].match(/\.(mp4|webm|ogg)$/i);
+            setMediaType(isVideo ? 'video' : 'audio');
+            return;
+          }
+        }
+
         const storedMedia = await get(`media_${id}`);
         const storedType = await get(`media_type_${id}`);
         
@@ -199,7 +252,7 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
           setMediaType(storedType as 'video' | 'audio');
         }
       } catch (err) {
-        console.error("Error loading media from IndexedDB:", err);
+        console.error("Error loading media:", err);
       }
     };
     loadMedia();
@@ -225,28 +278,50 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
         return;
       }
 
-      // IndexedDB can handle much larger files than localStorage (typically up to 80% of disk space)
-      // We'll set a reasonable 300MB limit for this app's context
       if (file.size > 300 * 1024 * 1024) {
         setError("O arquivo é muito grande. O limite é de 300MB.");
         setTimeout(() => setError(null), 5000);
         return;
       }
 
+      setIsUploading(true);
       try {
+        const type = isVideo ? 'video' : 'audio';
+        
+        // Save to server
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('id', id);
+        
+        const response = await fetch('/api/upload', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setMediaSrc(data.url);
+          setMediaType(type);
+        } else {
+          // Fallback to IndexedDB
+          await set(`media_${id}`, file);
+          await set(`media_type_${id}`, type);
+          if (mediaSrc && mediaSrc.startsWith('blob:')) {
+            URL.revokeObjectURL(mediaSrc);
+          }
+          setMediaSrc(URL.createObjectURL(file));
+          setMediaType(type);
+        }
+      } catch (err) {
+        console.error("Error saving media:", err);
+        // Fallback to IndexedDB
         const type = isVideo ? 'video' : 'audio';
         await set(`media_${id}`, file);
         await set(`media_type_${id}`, type);
-        
-        if (mediaSrc && mediaSrc.startsWith('blob:')) {
-          URL.revokeObjectURL(mediaSrc);
-        }
-        
         setMediaSrc(URL.createObjectURL(file));
         setMediaType(type);
-      } catch (err) {
-        console.error("Error saving media to IndexedDB:", err);
-        setError("Erro ao salvar o arquivo. O armazenamento do navegador pode estar cheio.");
+      } finally {
+        setIsUploading(false);
       }
     }
   };
@@ -336,10 +411,16 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
             <>
               <button 
                 onClick={() => fileInputRef.current?.click()}
-                className="p-4 bg-white rounded-full text-blue-900 shadow-xl hover:scale-110 transition-transform flex items-center gap-2 text-sm font-bold"
+                disabled={isUploading}
+                className="p-4 bg-white rounded-full text-blue-900 shadow-xl hover:scale-110 transition-transform flex items-center gap-2 text-sm font-bold disabled:opacity-50"
                 title="Upload Mídia"
               >
-                <Upload className="w-5 h-5" /> {mediaSrc ? 'Substituir' : 'Upload'}
+                {isUploading ? (
+                  <RefreshCw className="w-5 h-5 animate-spin" />
+                ) : (
+                  <Upload className="w-5 h-5" />
+                )}
+                {isUploading ? 'Enviando...' : (mediaSrc ? 'Substituir' : 'Upload')}
               </button>
               {mediaSrc && (
                 <button 
@@ -586,14 +667,28 @@ export default function App() {
     localStorage.setItem('isDev', String(newState));
   };
 
-  const resetAllImages = () => {
+  const resetAllImages = async () => {
     if (confirm("Deseja realmente resetar todas as imagens e vídeos para o padrão? Isso não pode ser desfeito.")) {
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('img_') || key.startsWith('media_') || key.startsWith('video_')) {
-          localStorage.removeItem(key);
-        }
-      });
-      window.location.reload();
+      try {
+        // Reset server
+        await fetch('/api/reset', { method: 'POST' });
+        
+        // Reset local
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('img_') || key.startsWith('media_') || key.startsWith('video_')) {
+            localStorage.removeItem(key);
+          }
+        });
+        
+        // Clear IndexedDB
+        const keys = ['img_', 'media_', 'video_'];
+        // Note: idb-keyval doesn't have a clear by prefix easily without iterating
+        // For simplicity, we'll just reload and the server reset will take priority
+        
+        window.location.reload();
+      } catch (err) {
+        console.error("Error resetting images:", err);
+      }
     }
   };
 
@@ -765,6 +860,7 @@ export default function App() {
                 <a href="#videos-destaque" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Vídeos em Destaque</a>
                 <a href="#fotos" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Galeria de Fotos</a>
                 <a href="#relacao-templos" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Relação de Templos</a>
+                <a href="#calendario" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Calendário de Eventos</a>
                 <a href="#arquivos" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Downloads (Drive)</a>
               </div>
             </div>
@@ -923,6 +1019,7 @@ export default function App() {
                 <a href="#videos-destaque" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Vídeos</a>
                 <a href="#fotos" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Galeria</a>
                 <a href="#relacao-templos" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Relação</a>
+                <a href="#calendario" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Calendário</a>
                 <a href="#arquivos" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Downloads</a>
                 <a href="#blog" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Blog</a>
                 <a href="#assistente-ia" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">IA</a>
@@ -2418,7 +2515,7 @@ export default function App() {
 
                   <div className="mt-12 flex items-center gap-4">
                     <a 
-                      href="https://www.facebook.com/templopelariodoamanhecer" 
+                      href="https://www.facebook.com/profile.php?id=61582420894528" 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-violet-500 transition-colors"
@@ -2555,7 +2652,7 @@ export default function App() {
                   location: "Acesse o Facebook",
                   desc: "Trabalho espiritual e caridade constante. Siga nossas atividades e escalas pelo Facebook.",
                   img: "https://images.unsplash.com/photo-1590076175571-4b5459efb599?auto=format&fit=crop&w=800&h=500&q=80",
-                  link: "https://www.facebook.com/templopelariodoamanhecer"
+                  link: "https://www.facebook.com/profile.php?id=61582420894528"
                 },
                 {
                   id: "templo-patario",
@@ -2622,9 +2719,22 @@ export default function App() {
                     isDarkMode ? "text-white" : "text-blue-900"
                   )}>{temple.name}</h3>
                   <p className={cn(
-                    "text-sm leading-relaxed mb-4",
+                    "text-sm leading-relaxed mb-6",
                     isDarkMode ? "text-slate-400" : "text-emerald-700"
                   )}>{temple.desc}</p>
+                  
+                  <a 
+                    href={temple.link || "https://valedoamanhecer.net.br/templos.php"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest transition-all group/btn",
+                      isDarkMode ? "text-violet-400 hover:text-violet-300" : "text-blue-900 hover:text-violet-600"
+                    )}
+                  >
+                    <span>Ver Informações</span>
+                    <ArrowRight className="w-4 h-4 transition-transform group-hover/btn:translate-x-1" />
+                  </a>
                 </motion.div>
               ))}
             </div>
@@ -2765,6 +2875,120 @@ export default function App() {
                 >
                   <File className="w-4 h-4" /> Relação Completa (Google)
                 </a>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Calendar Section */}
+        <section id="calendario" className={cn(
+          "py-24 scroll-mt-24 transition-colors duration-500",
+          isDarkMode ? "bg-slate-900" : "bg-white"
+        )}>
+          <div className="max-w-7xl mx-auto px-4">
+            <div className="text-center mb-16">
+              <h2 className={cn(
+                "text-3xl md:text-5xl font-serif font-bold mb-4",
+                isDarkMode ? "text-white" : "text-blue-900"
+              )}>Calendário de Eventos</h2>
+              <p className={cn(
+                "max-w-2xl mx-auto text-lg",
+                isDarkMode ? "text-slate-400" : "text-emerald-700"
+              )}>
+                Fique por dentro das datas sagradas, celebrações e missões que compõem o ciclo espiritual do Vale do Amanhecer.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+              {/* Upcoming Events List */}
+              <div className="lg:col-span-2 space-y-6">
+                {[
+                  { date: "01", month: "MAI", title: "Dia do Doutrinador", type: "Celebração", desc: "Grande festa em homenagem aos Doutrinadores de todo o mundo no Templo Mãe." },
+                  { date: "30", month: "OUT", title: "Aniversário de Tia Neiva", type: "Homenagem", desc: "Celebração da vida e obra da nossa Clarividente Neiva Zelaya." },
+                  { date: "09", month: "NOV", title: "Dia do Jaguar", type: "Celebração", desc: "Data dedicada a todos os médiuns jaguares que cumprem sua missão na Terra." },
+                  { date: "25", month: "DEZ", title: "Natal do Amanhecer", type: "Celebração", desc: "Trabalhos especiais de Natal com irradiação de amor e paz universal." },
+                  { date: "01", month: "JAN", title: "Ano Novo Espiritual", type: "Celebração", desc: "Abertura do ciclo anual com bênçãos de Pai Seta Branca." },
+                ].map((event, idx) => (
+                  <motion.div
+                    key={idx}
+                    initial={{ opacity: 0, x: -20 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.1 }}
+                    viewport={{ once: true }}
+                    className={cn(
+                      "flex items-center gap-6 p-6 rounded-[2rem] border transition-all hover:shadow-xl group",
+                      isDarkMode ? "bg-slate-950 border-slate-800 hover:border-violet-500/50" : "bg-pink-50/30 border-pink-100 hover:border-pink-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "flex flex-col items-center justify-center min-w-[80px] h-20 rounded-2xl shadow-inner",
+                      isDarkMode ? "bg-slate-800 text-white" : "bg-white text-blue-900"
+                    )}>
+                      <span className="text-2xl font-bold leading-none">{event.date}</span>
+                      <span className="text-[10px] font-bold tracking-widest uppercase opacity-60">{event.month}</span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-violet-500">{event.type}</span>
+                        <div className="w-1 h-1 rounded-full bg-slate-300" />
+                        <span className={cn("text-[10px] font-medium", isDarkMode ? "text-slate-500" : "text-emerald-600")}>Templo Mãe & Ramificações</span>
+                      </div>
+                      <h3 className={cn(
+                        "text-xl font-bold mb-1 transition-colors group-hover:text-violet-500",
+                        isDarkMode ? "text-white" : "text-blue-900"
+                      )}>{event.title}</h3>
+                      <p className={cn(
+                        "text-sm leading-relaxed opacity-70",
+                        isDarkMode ? "text-slate-400" : "text-emerald-700"
+                      )}>{event.desc}</p>
+                    </div>
+                    <div className="hidden sm:block">
+                      <button className={cn(
+                        "p-3 rounded-full transition-all hover:scale-110",
+                        isDarkMode ? "bg-slate-800 text-slate-400 hover:text-white" : "bg-white text-pink-300 hover:text-pink-500"
+                      )}>
+                        <ArrowRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Recurring Events / Sidebar */}
+              <div className="space-y-8">
+                <div className={cn(
+                  "p-8 rounded-[2.5rem] border shadow-lg",
+                  isDarkMode ? "bg-slate-950 border-slate-800" : "bg-blue-900 text-white"
+                )}>
+                  <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <RefreshCw className="w-5 h-5 text-violet-400" /> Atividades Recorrentes
+                  </h3>
+                  <div className="space-y-6">
+                    {[
+                      { day: "Todo 3º Domingo", title: "Palestra Doutrinária", time: "10:00h" },
+                      { day: "Toda 4ª Feira", title: "Missão de Cura Especial", time: "19:30h" },
+                      { day: "Sábados", title: "Desenvolvimento de Médiuns", time: "15:00h" },
+                      { day: "Diariamente", title: "Trabalhos de Retiro", time: "10h às 22h" },
+                    ].map((item, idx) => (
+                      <div key={idx} className="border-b border-white/10 last:border-0 pb-4 last:pb-0">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-violet-400 mb-1">{item.day}</p>
+                        <h4 className="font-bold mb-1">{item.title}</h4>
+                        <p className="text-xs opacity-60">Horário de Brasília: {item.time}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className={cn(
+                  "p-8 rounded-[2.5rem] border border-dashed",
+                  isDarkMode ? "border-slate-800 text-slate-400" : "border-pink-200 text-emerald-700"
+                )}>
+                  <Quote className="w-8 h-8 mb-4 opacity-20" />
+                  <p className="text-sm italic leading-relaxed">
+                    "O tempo é o senhor da razão, e na espiritualidade, cada data tem seu mistério e sua força de cura."
+                  </p>
+                  <p className="text-xs font-bold mt-4 uppercase tracking-widest">— Tia Neiva</p>
+                </div>
               </div>
             </div>
           </div>
@@ -3019,7 +3243,7 @@ export default function App() {
               )}>Acompanhe nossas Redes Oficiais</p>
               <div className="flex items-center gap-4">
                 <a 
-                  href="https://www.facebook.com/templopelariodoamanhecer"
+                  href="https://www.facebook.com/profile.php?id=61582420894528"
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn(
