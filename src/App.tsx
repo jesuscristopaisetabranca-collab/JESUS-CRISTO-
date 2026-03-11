@@ -1695,7 +1695,7 @@ export default function App() {
                 <Sparkles className="absolute -top-2 -right-2 w-6 h-6 text-violet-300 animate-pulse" />
               </button>
 
-              <div className="relative w-full sm:w-auto">
+              <div className="relative w-full sm:w-auto flex flex-col sm:flex-row gap-4">
                 <button 
                   onClick={() => setShowHeroShareOptions(!showHeroShareOptions)}
                   className={cn(
@@ -1708,6 +1708,13 @@ export default function App() {
                   <Share2 className="w-5 h-5" />
                   Compartilhar
                 </button>
+
+                <a 
+                  href="#doacao"
+                  className="px-10 py-5 bg-rose-500 hover:bg-rose-600 text-white text-xl font-bold rounded-full shadow-lg transition-all hover:-translate-y-1 active:scale-95 flex items-center justify-center gap-2 w-full sm:w-auto"
+                >
+                  <Heart className="w-5 h-5 fill-current" /> Doar Agora
+                </a>
 
                 {showHeroShareOptions && (
                   <motion.div 
@@ -2741,6 +2748,21 @@ export default function App() {
               <LetterTranscriber isDarkMode={isDarkMode} />
             </div>
 
+            <div className="mt-16 text-center">
+              <p className={cn(
+                "text-sm mb-6 max-w-lg mx-auto",
+                isDarkMode ? "text-slate-400" : "text-emerald-700"
+              )}>
+                A tecnologia que move este portal e nossa IA tem custos. Ajude-nos a manter esta luz acesa para todos os jaguares.
+              </p>
+              <a 
+                href="#doacao"
+                className="inline-flex items-center gap-2 px-8 py-3 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-bold transition-all shadow-lg hover:scale-105 active:scale-95"
+              >
+                <Heart className="w-4 h-4 fill-current" /> Apoiar o Portal
+              </a>
+            </div>
+
             {isDev && (
               <div className="max-w-3xl mx-auto">
                 <div className="text-center mb-8">
@@ -2855,6 +2877,15 @@ export default function App() {
           onDelete={handleDeleteNews}
           onAdd={() => setIsNewsModalOpen(true)}
         />
+
+        <div className="py-12 text-center">
+          <a 
+            href="#doacao"
+            className="inline-flex items-center gap-3 px-10 py-4 bg-rose-500/10 text-rose-500 border-2 border-rose-500/20 rounded-full font-bold hover:bg-rose-500 hover:text-white transition-all shadow-lg active:scale-95"
+          >
+            <HeartHandshake className="w-5 h-5" /> Apoie a Manutenção do Portal
+          </a>
+        </div>
 
         {/* Blog Section */}
         <section id="blog" className={cn(
@@ -3801,6 +3832,16 @@ export default function App() {
               </div>
             </div>
           </div>
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">
+            <a href="#historia" className="hover:text-violet-500 transition-colors">História</a>
+            <a href="#nossos-templos" className="hover:text-violet-500 transition-colors">Templos</a>
+            <a href="#arquivos" className="hover:text-violet-500 transition-colors">Downloads</a>
+            <a href="#noticias" className="hover:text-violet-500 transition-colors">Notícias</a>
+            <a href="#blog" className="hover:text-violet-500 transition-colors">Blog</a>
+            <a href="#doacao" className="text-rose-500 hover:text-rose-600 transition-colors flex items-center gap-1">
+              <Heart className="w-3 h-3 fill-current" /> Doação
+            </a>
+          </div>
           <p className={cn(
             "text-sm mb-2",
             isDarkMode ? "text-slate-400" : "text-emerald-700"
@@ -3981,6 +4022,19 @@ export default function App() {
 
       {/* Admin & Navigation Floating Buttons */}
       <div className="fixed bottom-8 right-8 z-[60] flex flex-col gap-4">
+        <motion.a
+          href="#doacao"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          className="w-14 h-14 bg-rose-500 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:bg-rose-600 border-4 border-white group"
+          title="Fazer uma Doação"
+        >
+          <Heart className="w-6 h-6 fill-current group-hover:animate-ping absolute" />
+          <Heart className="w-6 h-6 fill-current relative z-10" />
+        </motion.a>
+
         {isDev && (
           <motion.button
             initial={{ scale: 0 }}
