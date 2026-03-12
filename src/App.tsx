@@ -53,7 +53,9 @@ import {
   Plus,
   Calendar,
   Tag,
-  Trash
+  Trash,
+  Compass,
+  Star
 } from 'lucide-react';
 
 interface NewsItem {
@@ -929,6 +931,127 @@ const DonationSection: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
   );
 };
 
+const DoutrinaSection: React.FC<{ isDarkMode: boolean; isDev: boolean }> = ({ isDarkMode, isDev }) => {
+  return (
+    <section id="doutrina" className={cn(
+      "py-24 scroll-mt-24 transition-colors duration-500",
+      isDarkMode ? "bg-slate-950" : "bg-pink-50/30"
+    )}>
+      <div className="max-w-7xl mx-auto px-4">
+        <div className="text-center mb-16">
+          <div className="inline-flex p-3 bg-violet-500/10 rounded-2xl text-violet-500 mb-6">
+            <BookOpen className="w-8 h-8" />
+          </div>
+          <h2 className={cn(
+            "text-4xl md:text-5xl font-serif font-bold mb-6",
+            isDarkMode ? "text-white" : "text-blue-900"
+          )}>Doutrina e Missão</h2>
+          <div className="w-24 h-1 bg-violet-500 mx-auto mb-8 rounded-full"></div>
+          <p className={cn(
+            "max-w-3xl mx-auto text-lg leading-relaxed",
+            isDarkMode ? "text-slate-400" : "text-emerald-700"
+          )}>
+            Conheça os fundamentos da Doutrina do Amanhecer e o legado espiritual deixado por nossos mentores.
+          </p>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-8 mb-20">
+          {[
+            {
+              title: "A Doutrina",
+              icon: <Sparkles className="w-6 h-6" />,
+              content: "A Doutrina do Amanhecer é um sistema espiritualista cristão que integra conhecimentos de diversas eras e civilizações, focada na manipulação de energias para a cura e o auxílio ao próximo."
+            },
+            {
+              title: "Princípios Fundamentais",
+              icon: <ShieldCheck className="w-6 h-6" />,
+              content: "Baseada no tripé Amor, Humildade e Tolerância. Acreditamos na Lei de Causa e Efeito e no compromisso do Jaguar em servir como um canal de luz para a humanidade."
+            },
+            {
+              title: "A Missão Jaguar",
+              icon: <Compass className="w-6 h-6" />,
+              content: "O Jaguar é o médium que assume a responsabilidade de equilibrar as forças espirituais, atuando como um doutrinador ou apará na caridade desinteressada."
+            }
+          ].map((item, idx) => (
+            <div key={idx} className={cn(
+              "p-8 rounded-[2.5rem] border transition-all hover:shadow-xl",
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
+            )}>
+              <div className="w-12 h-12 rounded-2xl bg-violet-500/10 flex items-center justify-center text-violet-500 mb-6">
+                {item.icon}
+              </div>
+              <h3 className={cn(
+                "text-xl font-bold mb-4",
+                isDarkMode ? "text-white" : "text-blue-900"
+              )}>{item.title}</h3>
+              <p className={cn(
+                "text-sm leading-relaxed",
+                isDarkMode ? "text-slate-400" : "text-emerald-700"
+              )}>{item.content}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid md:grid-cols-2 gap-12 items-center">
+          <div className="space-y-8">
+            <div className={cn(
+              "p-8 rounded-[3rem] border relative overflow-hidden",
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100 shadow-xl"
+            )}>
+              <h3 className="text-2xl font-serif font-bold text-violet-500 mb-4">Tia Neiva</h3>
+              <p className={cn(
+                "text-sm leading-relaxed mb-6",
+                isDarkMode ? "text-slate-300" : "text-emerald-800"
+              )}>
+                Neiva Chaves Zelaya, a Clarividente, foi a enviada para materializar a Doutrina do Amanhecer no plano físico. Sua missão foi acolher os desamparados e formar uma legião de médiuns capazes de manipular as forças do universo.
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-violet-500/20 flex items-center justify-center text-violet-500">
+                  <Heart className="w-6 h-6" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-violet-400">A Mãe Mentora</span>
+              </div>
+            </div>
+
+            <div className={cn(
+              "p-8 rounded-[3rem] border relative overflow-hidden",
+              isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100 shadow-xl"
+            )}>
+              <h3 className="text-2xl font-serif font-bold text-blue-500 mb-4">Pai Seta Branca</h3>
+              <p className={cn(
+                "text-sm leading-relaxed mb-6",
+                isDarkMode ? "text-slate-300" : "text-emerald-800"
+              )}>
+                O Grande Simiromba de Deus, mentor espiritual da nossa missão. Pai Seta Branca guia os Jaguares na Nova Era, trazendo a sabedoria dos planos superiores para o equilíbrio da Terra.
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-500">
+                  <Star className="w-6 h-6" />
+                </div>
+                <span className="text-xs font-bold uppercase tracking-widest text-blue-400">O Mentor Espiritual</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="aspect-[4/5] rounded-[4rem] overflow-hidden shadow-2xl border-8 border-white">
+              <EditableImage 
+                id="doutrina-main-image"
+                defaultSrc="https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=800&q=80"
+                alt="Doutrina do Amanhecer"
+                isDev={isDev}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="absolute -bottom-6 -right-6 w-32 h-32 bg-yellow-400 rounded-full blur-3xl opacity-30 animate-pulse"></div>
+            <div className="absolute -top-6 -left-6 w-32 h-32 bg-violet-500 rounded-full blur-3xl opacity-30 animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
 const NoticiasSection: React.FC<{ 
   isDarkMode: boolean; 
   isDev: boolean; 
@@ -1318,6 +1441,7 @@ export default function App() {
                 "absolute top-full left-0 mt-1 shadow-2xl rounded-2xl p-3 min-w-[220px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all transform group-hover:translate-y-0 translate-y-2 border",
                 isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
               )}>
+                <a href="#doutrina" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Doutrina e Missão</a>
                 <a href="#historia" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Nossa História</a>
                 <a href="#nossos-templos" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Nossos Templos</a>
                 <a href="#falanges" className="flex items-center gap-2 px-4 py-2.5 hover:bg-violet-500/10 rounded-xl transition-colors hover:text-violet-500">Falanges do Amanhecer</a>
@@ -1499,6 +1623,7 @@ export default function App() {
               <div className="space-y-4">
                 <p className="text-[10px] text-violet-500 border-b border-violet-500/20 pb-1">Doutrina</p>
                 <div className="flex flex-col gap-3">
+                  <a href="#doutrina" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Doutrina e Missão</a>
                   <a href="#historia" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Nossa História</a>
                   <a href="#nossos-templos" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Nossos Templos</a>
                   <a href="#falanges" onClick={() => setIsMobileMenuOpen(false)} className="hover:text-violet-500 transition-colors">Falanges</a>
@@ -1785,6 +1910,8 @@ export default function App() {
             </motion.div>
           </div>
         </section>
+        
+        <DoutrinaSection isDarkMode={isDarkMode} isDev={isDev} />
 
         {/* História Section */}
         <section id="historia" className={cn(
@@ -3833,6 +3960,7 @@ export default function App() {
             </div>
           </div>
           <div className="flex flex-wrap justify-center gap-x-8 gap-y-4 text-[10px] font-bold uppercase tracking-[0.2em] mb-8">
+            <a href="#doutrina" className="hover:text-violet-500 transition-colors">Doutrina</a>
             <a href="#historia" className="hover:text-violet-500 transition-colors">História</a>
             <a href="#nossos-templos" className="hover:text-violet-500 transition-colors">Templos</a>
             <a href="#arquivos" className="hover:text-violet-500 transition-colors">Downloads</a>
