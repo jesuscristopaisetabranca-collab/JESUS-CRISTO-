@@ -55,7 +55,10 @@ import {
   Tag,
   Trash,
   Compass,
-  Star
+  Star,
+  Unlock,
+  Edit3,
+  Layout
 } from 'lucide-react';
 
 interface NewsItem {
@@ -87,6 +90,77 @@ interface EditableImageProps {
   className?: string;
   isDev?: boolean;
 }
+
+interface EditableTextProps {
+  id: string;
+  defaultText: string;
+  className?: string;
+  isDev?: boolean;
+  tagName?: 'p' | 'h1' | 'h2' | 'h3' | 'h4' | 'span' | 'div';
+}
+
+const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className, isDev, tagName: Tag = 'p' }) => {
+  const [text, setText] = React.useState(defaultText);
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [tempText, setTempText] = React.useState(defaultText);
+
+  React.useEffect(() => {
+    const loadText = async () => {
+      const storedText = await get(`text_${id}`);
+      if (storedText) {
+        setText(storedText);
+        setTempText(storedText);
+      }
+    };
+    loadText();
+  }, [id]);
+
+  const handleSave = async () => {
+    setText(tempText);
+    await set(`text_${id}`, tempText);
+    setIsEditing(false);
+  };
+
+  if (isDev && isEditing) {
+    return (
+      <div className={cn("relative w-full", className)}>
+        <textarea
+          value={tempText}
+          onChange={(e) => setTempText(e.target.value)}
+          className="w-full p-2 border-2 border-blue-500 rounded-lg bg-white text-black focus:outline-none focus:ring-2 focus:ring-blue-300 min-h-[100px]"
+          autoFocus
+        />
+        <div className="flex gap-2 mt-2">
+          <button 
+            onClick={handleSave}
+            className="px-4 py-1 bg-emerald-600 text-white text-xs font-bold rounded-md hover:bg-emerald-700 transition-colors"
+          >
+            Salvar
+          </button>
+          <button 
+            onClick={() => { setIsEditing(false); setTempText(text); }}
+            className="px-4 py-1 bg-slate-400 text-white text-xs font-bold rounded-md hover:bg-slate-500 transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <Tag 
+      className={cn(
+        className, 
+        isDev && "cursor-pointer hover:bg-blue-50/50 transition-colors rounded px-1 border border-transparent hover:border-blue-200"
+      )}
+      onClick={() => isDev && setIsEditing(true)}
+      title={isDev ? "Clique para editar texto" : undefined}
+    >
+      {text}
+    </Tag>
+  );
+};
 
 const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, className, isDev }) => {
   const [src, setSrc] = React.useState<string>(defaultSrc);
@@ -183,8 +257,8 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
 
         // 2. Save to server
         const formData = new FormData();
-        formData.append('file', file);
         formData.append('id', id);
+        formData.append('file', file);
         
         const response = await fetch('/api/upload', {
           method: 'POST',
@@ -258,14 +332,19 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
       )}
 
       {isDev && !isUploading && (
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-30">
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            className="p-3 bg-white rounded-full text-blue-900 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold"
-          >
-            <Edit2 className="w-4 h-4" /> Alterar Imagem
-          </button>
-        </div>
+        <>
+          <div className="absolute top-2 left-2 z-40 bg-blue-600 text-white p-1.5 rounded-lg shadow-lg animate-pulse">
+            <Edit2 className="w-3 h-3" />
+          </div>
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-30">
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="p-3 bg-white rounded-full text-blue-900 shadow-2xl hover:scale-110 transition-transform flex items-center gap-2 text-xs font-bold"
+            >
+              <Edit2 className="w-4 h-4" /> Alterar Imagem
+            </button>
+          </div>
+        </>
       )}
       <input 
         type="file" 
@@ -450,8 +529,8 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
       // 2. Upload with progress
       const type = isVideo ? 'video' : 'audio';
       const formData = new FormData();
-      formData.append('file', file);
       formData.append('id', id);
+      formData.append('file', file);
 
       const xhr = new XMLHttpRequest();
       let startTime = Date.now();
@@ -529,6 +608,12 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
 
   return (
     <div className={cn("relative group w-full h-full", className)}>
+      {isDev && !isUploading && (
+        <div className="absolute top-4 left-4 z-40 bg-violet-600 text-white p-2 rounded-xl shadow-lg animate-pulse">
+          <Edit2 className="w-4 h-4" />
+        </div>
+      )}
+
       {isLoading ? (
         <div className="w-full h-full bg-blue-900/40 backdrop-blur-sm flex flex-col items-center justify-center">
           <RefreshCw className="w-10 h-10 text-white animate-spin mb-2" />
@@ -1094,17 +1179,26 @@ const DoutrinaSection: React.FC<{ isDarkMode: boolean; isDev: boolean }> = ({ is
           <div className="inline-flex p-3 bg-violet-500/10 rounded-2xl text-violet-500 mb-6">
             <BookOpen className="w-8 h-8" />
           </div>
-          <h2 className={cn(
-            "text-4xl md:text-5xl font-serif font-bold mb-6",
-            isDarkMode ? "text-white" : "text-blue-900"
-          )}>Doutrina e Missão</h2>
+          <EditableText 
+            id="doutrina_title"
+            defaultText="Doutrina e Missão"
+            tagName="h2"
+            isDev={isDev}
+            className={cn(
+              "text-4xl md:text-5xl font-serif font-bold mb-6",
+              isDarkMode ? "text-white" : "text-blue-900"
+            )}
+          />
           <div className="w-24 h-1 bg-violet-500 mx-auto mb-8 rounded-full"></div>
-          <p className={cn(
-            "max-w-3xl mx-auto text-lg leading-relaxed",
-            isDarkMode ? "text-slate-400" : "text-emerald-700"
-          )}>
-            Conheça os fundamentos da Doutrina do Amanhecer e o legado espiritual deixado por nossos mentores.
-          </p>
+          <EditableText 
+            id="doutrina_desc"
+            defaultText="Conheça os fundamentos da Doutrina do Amanhecer e o legado espiritual deixado por nossos mentores."
+            isDev={isDev}
+            className={cn(
+              "max-w-3xl mx-auto text-lg leading-relaxed",
+              isDarkMode ? "text-slate-400" : "text-emerald-700"
+            )}
+          />
         </div>
 
         <div className="grid md:grid-cols-3 gap-8 mb-20">
@@ -1438,14 +1532,14 @@ export default function App() {
   const [templeSearch, setTempleSearch] = React.useState('');
   const [isAcervoModalOpen, setIsAcervoModalOpen] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
-  const [isLoggedIn, setIsLoggedIn] = React.useState(false);
-  const [acervoPassword, setAcervoPassword] = React.useState('');
   const [isDev, setIsDev] = React.useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('isDev') === 'true';
     }
     return false;
   });
+  const [isLoggedIn, setIsLoggedIn] = React.useState(isDev);
+  const [acervoPassword, setAcervoPassword] = React.useState('');
   const [loginData, setLoginData] = React.useState({ email: '', password: '' });
   const [showBackToTop, setShowBackToTop] = React.useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = React.useState(false);
@@ -1701,9 +1795,34 @@ export default function App() {
       "min-h-screen font-sans transition-colors duration-500",
       isDarkMode ? "bg-slate-950 text-slate-100 selection:bg-blue-900" : "bg-pink-50 text-emerald-900 selection:bg-pink-200"
     )}>
+      {isDev && (
+        <div className="fixed top-0 left-0 right-0 z-[200] bg-blue-900 text-white py-2 px-4 flex items-center justify-between shadow-lg border-b border-blue-700 animate-in slide-in-from-top duration-500">
+          <div className="flex items-center gap-3">
+            <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">Modo Edição Ativo</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-[9px] text-blue-200 hidden sm:inline">Clique em textos ou imagens para alterar o conteúdo</span>
+            <button 
+              onClick={() => setIsAdminPanelOpen(true)}
+              className="px-4 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-[10px] font-bold transition-colors border border-white/20"
+            >
+              Painel de Controle
+            </button>
+            <button 
+              onClick={toggleDev}
+              className="px-4 py-1 bg-rose-500 hover:bg-rose-600 rounded-lg text-[10px] font-bold transition-colors"
+            >
+              Sair
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Navigation / Header */}
       <nav className={cn(
         "fixed top-0 w-full backdrop-blur-xl z-50 border-b transition-all duration-500",
+        isDev && "mt-10",
         isDarkMode ? "bg-slate-900/90 border-slate-800 shadow-2xl" : "bg-white/90 border-pink-100 shadow-sm"
       )}>
         <div className="max-w-7xl mx-auto px-4 h-20 flex items-center justify-between">
@@ -1981,6 +2100,14 @@ export default function App() {
               >
                 <User className="w-4 h-4" /> Entrar no Portal
               </button>
+              {isLoggedIn && (
+                <button 
+                  onClick={() => { setIsAdminPanelOpen(true); setIsMobileMenuOpen(false); }}
+                  className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2"
+                >
+                  <Lock className="w-4 h-4" /> Painel do Mestre
+                </button>
+              )}
               <div className="flex items-center justify-center gap-6">
                 <a href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
                   <div className="bg-rose-600 rounded-xl p-2.5 flex items-center justify-center shadow-lg">
@@ -2231,18 +2358,26 @@ export default function App() {
         )}>
           <div className="max-w-7xl mx-auto px-4">
             <div className="text-center mb-16">
-              <h2 className={cn(
-                "text-4xl md:text-5xl font-serif font-bold mb-6",
-                isDarkMode ? "text-white" : "text-blue-900"
-              )}>Nossa História</h2>
+              <EditableText 
+                id="historia_title"
+                defaultText="Nossa História"
+                tagName="h2"
+                isDev={isDev}
+                className={cn(
+                  "text-4xl md:text-5xl font-serif font-bold mb-6",
+                  isDarkMode ? "text-white" : "text-blue-900"
+                )}
+              />
               <div className="w-24 h-1 bg-violet-500 mx-auto mb-8 rounded-full"></div>
-              <p className={cn(
-                "max-w-3xl mx-auto text-lg leading-relaxed",
-                isDarkMode ? "text-slate-400" : "text-emerald-700"
-              )}>
-                A trajetória de Tia Neiva e a fundação do Vale do Amanhecer é uma jornada de fé, 
-                clarividência e amor incondicional que transformou a vida de milhares de pessoas.
-              </p>
+              <EditableText 
+                id="historia_desc"
+                defaultText="A trajetória de Tia Neiva e a fundação do Vale do Amanhecer é uma jornada de fé, clarividência e amor incondicional que transformou a vida de milhares de pessoas."
+                isDev={isDev}
+                className={cn(
+                  "max-w-3xl mx-auto text-lg leading-relaxed",
+                  isDarkMode ? "text-slate-400" : "text-emerald-700"
+                )}
+              />
             </div>
 
             {/* Timeline Section */}
@@ -4008,6 +4143,13 @@ export default function App() {
                   isDarkMode ? "text-white" : "text-blue-900"
                 )}>Portal do Jaguar</h2>
                 <p className={isDarkMode ? "text-slate-400" : "text-emerald-700 text-sm"}>Acesse sua jornada espiritual</p>
+                
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl border border-blue-100 dark:border-blue-800 flex items-start gap-3">
+                  <Sparkles className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-blue-800 dark:text-blue-200 text-left leading-relaxed">
+                    <strong>Acesso de Mestre:</strong> Use o e-mail <strong>admin@vale.com</strong> e a senha <strong>admin</strong> para habilitar as ferramentas de edição do portal.
+                  </p>
+                </div>
               </div>
 
               <form className="space-y-6" onSubmit={handleLogin}>
@@ -4458,17 +4600,18 @@ export default function App() {
           <Heart className="w-6 h-6 fill-current relative z-10" />
         </motion.a>
 
-        {isDev && (
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            onClick={() => setIsAdminPanelOpen(true)}
-            className="w-14 h-14 bg-blue-900 text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform border-4 border-white active:scale-95"
-            title="Painel do Mestre"
-          >
-            <Lock className="w-6 h-6" />
-          </motion.button>
-        )}
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          onClick={() => setIsAdminPanelOpen(true)}
+          className={cn(
+            "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all border-4 border-white active:scale-95",
+            isDev ? "bg-blue-900 text-white" : "bg-slate-700 text-slate-300"
+          )}
+          title="Painel do Mestre"
+        >
+          {isDev ? <Unlock className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
+        </motion.button>
         
         <motion.button
           initial={{ opacity: 0, scale: 0.5 }}
@@ -4548,7 +4691,41 @@ export default function App() {
                       onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
                       className="text-xs font-bold text-blue-600 hover:underline"
                     >
-                      Ir para o Início
+                      Ver Imagens
+                    </button>
+                  </div>
+
+                  <div className={cn(
+                    "p-6 rounded-3xl border transition-all",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-amber-50 border-amber-100"
+                  )}>
+                    <div className="w-12 h-12 bg-amber-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                      <Edit3 className="w-6 h-6" />
+                    </div>
+                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Editar Textos</h3>
+                    <p className="text-xs text-slate-500 mb-4">Clique em qualquer parágrafo ou título para abrir o editor de texto.</p>
+                    <button 
+                      onClick={() => { setIsAdminPanelOpen(false); }}
+                      className="text-xs font-bold text-amber-600 hover:underline"
+                    >
+                      Começar a Editar
+                    </button>
+                  </div>
+
+                  <div className={cn(
+                    "p-6 rounded-3xl border transition-all",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-indigo-50 border-indigo-100"
+                  )}>
+                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                      <Layout className="w-6 h-6" />
+                    </div>
+                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Gerenciar Galeria</h3>
+                    <p className="text-xs text-slate-500 mb-4">Adicione novas fotos e vídeos na galeria de mídia do portal.</p>
+                    <button 
+                      onClick={() => { setIsAdminPanelOpen(false); document.getElementById('galeria')?.scrollIntoView({ behavior: 'smooth' }); }}
+                      className="text-xs font-bold text-indigo-600 hover:underline"
+                    >
+                      Ir para Galeria
                     </button>
                   </div>
 
