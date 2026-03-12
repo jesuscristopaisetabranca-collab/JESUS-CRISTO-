@@ -48,6 +48,7 @@ import {
   Music,
   Volume2,
   HeartHandshake,
+  Mic2,
   Coins,
   Bell,
   Plus,
@@ -1201,7 +1202,7 @@ const DoutrinaSection: React.FC<{ isDarkMode: boolean; isDev: boolean }> = ({ is
           />
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8 mb-20">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-20">
           {[
             {
               title: "A Doutrina",
@@ -1217,6 +1218,11 @@ const DoutrinaSection: React.FC<{ isDarkMode: boolean; isDev: boolean }> = ({ is
               title: "A Missão Jaguar",
               icon: <Compass className="w-6 h-6" />,
               content: "O Jaguar é o médium que assume a responsabilidade de equilibrar as forças espirituais, atuando como um doutrinador ou apará na caridade desinteressada."
+            },
+            {
+              title: "Palestra Dominical",
+              icon: <Mic2 className="w-6 h-6" />,
+              content: "Realizada todos os domingos, a Palestra Dominical é o momento de sintonização com as verdades evangélicas e doutrinárias, trazendo esclarecimentos para a jornada espiritual."
             }
           ].map((item, idx) => (
             <div key={idx} className={cn(
