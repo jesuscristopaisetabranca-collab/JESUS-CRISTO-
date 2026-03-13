@@ -1767,28 +1767,23 @@ export default function App() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple logic: if email is admin@vale.com, enable dev mode
+    // Only allow admin login
     if (loginData.email === 'admin@vale.com' && loginData.password === 'admin') {
       setIsDev(true);
       localStorage.setItem('isDev', 'true');
       setIsLoggedIn(true);
       setIsLoginModalOpen(false);
-      alert("Modo Desenvolvedor Ativado!");
+      alert("Modo Mestre Ativado!");
     } else {
-      setIsLoggedIn(true);
-      alert("Login realizado com sucesso!");
-      setIsLoginModalOpen(false);
+      alert("Acesso negado. Apenas o Administrador pode editar o portal.");
     }
   };
 
-  const handleAcervoAccess = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (acervoPassword === 'amanhecer') {
-      setIsAcervoModalOpen(false);
-      window.open('https://drive.google.com/drive/my-drive', '_blank');
-    } else {
-      alert("Senha incorreta! Solicite a senha ao seu Mestre.");
-    }
+  const handleAcervoAccess = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    // Direct access to Drive as requested for visitors
+    window.open('https://drive.google.com/drive/my-drive', '_blank');
+    setIsAcervoModalOpen(false);
   };
 
   const toggleDev = () => {
@@ -2110,13 +2105,15 @@ export default function App() {
             </button>
 
             <a 
-              href="#arquivos"
+              href="https://drive.google.com/drive/my-drive"
+              target="_blank"
+              rel="noopener noreferrer"
               className="hidden md:flex px-6 py-2.5 bg-violet-600 text-white text-[11px] font-bold rounded-xl hover:bg-violet-700 transition-all items-center gap-2 shadow-lg shadow-violet-500/20 active:scale-95"
             >
               <Download className="w-4 h-4" /> Downloads
             </a>
 
-            {isLoggedIn && (
+            {isDev && (
               <button 
                 onClick={() => setIsAdminPanelOpen(true)}
                 className={cn(
@@ -2129,12 +2126,13 @@ export default function App() {
               </button>
             )}
 
-            {isLoggedIn && (
+            {!isDev && (
               <button 
                 onClick={() => setIsLoginModalOpen(true)}
-                className="hidden sm:flex px-6 py-2.5 bg-blue-900 text-white text-[11px] font-bold rounded-xl hover:bg-blue-800 transition-all items-center gap-2 shadow-lg shadow-blue-900/20 active:scale-95"
+                className="hidden sm:flex p-1 opacity-0 hover:opacity-10 transition-opacity"
+                title="Acesso Administrativo"
               >
-                <User className="w-4 h-4" /> Entrar
+                <Lock className="w-2 h-2" />
               </button>
             )}
 
@@ -2227,21 +2225,20 @@ export default function App() {
             </div>
 
             <div className="pt-6 border-t border-slate-500/10 flex flex-col gap-4">
-              {isLoggedIn && (
-                <>
-                  <button 
-                    onClick={() => { setIsLoginModalOpen(true); setIsMobileMenuOpen(false); }}
-                    className="w-full py-4 bg-blue-900 text-white rounded-2xl font-bold shadow-xl shadow-blue-900/20 flex items-center justify-center gap-2"
-                  >
-                    <User className="w-4 h-4" /> Entrar no Portal
-                  </button>
-                  <button 
-                    onClick={() => { setIsAdminPanelOpen(true); setIsMobileMenuOpen(false); }}
-                    className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2"
-                  >
-                    <Lock className="w-4 h-4" /> Painel do Mestre
-                  </button>
-                </>
+              {isDev ? (
+                <button 
+                  onClick={() => { setIsAdminPanelOpen(true); setIsMobileMenuOpen(false); }}
+                  className="w-full py-4 bg-slate-800 text-white rounded-2xl font-bold shadow-xl flex items-center justify-center gap-2"
+                >
+                  <Lock className="w-4 h-4" /> Painel do Mestre
+                </button>
+              ) : (
+                <button 
+                  onClick={() => { setIsLoginModalOpen(true); setIsMobileMenuOpen(false); }}
+                  className="w-full py-4 bg-blue-900/10 text-blue-900 dark:text-blue-300 rounded-2xl font-bold flex items-center justify-center gap-2 opacity-20"
+                >
+                  <Lock className="w-4 h-4" /> Acesso Mestre
+                </button>
               )}
               <div className="flex items-center justify-center gap-6">
                 <a href="https://www.youtube.com/channel/UCuXuIizz8_5nkLMWU-Vxo5g" target="_blank" rel="noopener noreferrer" className="transition-transform hover:scale-110">
@@ -3535,12 +3532,12 @@ export default function App() {
                     <div className="flex justify-end mt-6">
                       <button 
                         onClick={() => {
-                          alert("Arquivos enviados com sucesso para análise do Mestre! Em breve estarão disponíveis no acervo.");
+                          window.open('https://drive.google.com/drive/my-drive', '_blank');
                           setUploadedFiles([]);
                         }}
-                        className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg active:scale-95"
+                        className="px-8 py-3 bg-blue-900 text-white font-bold rounded-full hover:bg-blue-800 transition-all shadow-lg active:scale-95 flex items-center gap-2"
                       >
-                        Enviar Arquivos para o Acervo
+                        <ExternalLink className="w-5 h-5" /> Enviar para o Drive do Acervo
                       </button>
                     </div>
                   </motion.div>
@@ -4375,7 +4372,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Acervo Password Modal */}
+      {/* Acervo Modal - Now just a confirmation to go to Drive */}
       {isAcervoModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
           <motion.div 
@@ -4392,53 +4389,33 @@ export default function App() {
               isDarkMode ? "bg-slate-900 border-slate-800" : "bg-white border-pink-100"
             )}
           >
-            <div className="p-8 md:p-12">
-              <div className="text-center mb-8">
-                <div className={cn(
-                  "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4",
-                  isDarkMode ? "bg-slate-800" : "bg-pink-100"
-                )}>
-                  <Lock className="w-8 h-8 text-violet-500" />
-                </div>
-                <h2 className={cn(
-                  "text-2xl font-serif font-bold",
-                  isDarkMode ? "text-white" : "text-blue-900"
-                )}>Senha de Acesso</h2>
-                <p className={isDarkMode ? "text-slate-400" : "text-emerald-700 text-sm"}>Digite a senha para acessar o material do Drive</p>
+            <div className="p-8 md:p-12 text-center">
+              <div className={cn(
+                "w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4",
+                isDarkMode ? "bg-slate-800" : "bg-emerald-100"
+              )}>
+                <Upload className="w-8 h-8 text-emerald-500" />
               </div>
-
-              <form className="space-y-6" onSubmit={handleAcervoAccess}>
-                <div className="space-y-2">
-                  <label className={cn(
-                    "text-xs font-bold uppercase tracking-wider ml-1",
-                    isDarkMode ? "text-slate-500" : "text-emerald-800"
-                  )}>Senha do Acervo</label>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-emerald-400" />
-                    <input 
-                      type="password" 
-                      required
-                      value={acervoPassword}
-                      onChange={(e) => setAcervoPassword(e.target.value)}
-                      placeholder="Digite a senha"
-                      className={cn(
-                        "w-full pl-12 pr-4 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all border",
-                        isDarkMode ? "bg-slate-950 border-slate-800 text-white" : "bg-pink-50 border-pink-100 text-emerald-900"
-                      )}
-                    />
-                  </div>
-                </div>
-
-                <button className="w-full py-4 bg-violet-500 text-white font-bold rounded-2xl hover:bg-violet-600 transition-all shadow-lg flex items-center justify-center gap-2">
-                  <LogIn className="w-5 h-5" /> Acessar Material
-                </button>
-              </form>
+              <h2 className={cn(
+                "text-2xl font-serif font-bold mb-4",
+                isDarkMode ? "text-white" : "text-blue-900"
+              )}>Acervo Digital</h2>
+              <p className={cn("mb-8 text-sm", isDarkMode ? "text-slate-400" : "text-emerald-700")}>
+                Você será redirecionado para o nosso acervo oficial no Google Drive. Lá você poderá visualizar, baixar e submeter novos materiais para estudo.
+              </p>
+              
+              <button 
+                onClick={() => handleAcervoAccess()}
+                className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-2"
+              >
+                <ExternalLink className="w-5 h-5" /> Ir para o Drive
+              </button>
             </div>
             
             <button 
               onClick={() => setIsAcervoModalOpen(false)}
               className={cn(
-                "absolute top-6 right-6 p-2 rounded-full text-emerald-400 transition-colors",
+                "absolute top-6 right-6 p-2 rounded-full text-slate-400 transition-colors",
                 isDarkMode ? "hover:bg-slate-800" : "hover:bg-pink-50"
               )}
             >
@@ -4728,6 +4705,18 @@ export default function App() {
 
       {/* Admin & Navigation Floating Buttons */}
       <div className="fixed bottom-8 right-8 z-[60] flex flex-col gap-4">
+        <motion.button
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.9 }}
+          onClick={() => setIsAcervoModalOpen(true)}
+          className="w-14 h-14 bg-emerald-600 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:bg-emerald-700 border-4 border-white group"
+          title="Submeter Material ao Acervo"
+        >
+          <Upload className="w-6 h-6" />
+        </motion.button>
+
         <motion.a
           href="https://tipa.ai/jesuscristopaisetabranca"
           target="_blank"
@@ -4743,18 +4732,19 @@ export default function App() {
           <Heart className="w-6 h-6 fill-current relative z-10" />
         </motion.a>
 
-        <motion.button
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          onClick={() => setIsAdminPanelOpen(true)}
-          className={cn(
-            "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all border-4 border-white active:scale-95",
-            isDev ? "bg-blue-900 text-white" : "bg-slate-700 text-slate-300"
-          )}
-          title="Painel do Mestre"
-        >
-          {isDev ? <Unlock className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
-        </motion.button>
+        {isDev && (
+          <motion.button
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            onClick={() => setIsAdminPanelOpen(true)}
+            className={cn(
+              "w-14 h-14 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all border-4 border-white active:scale-95 bg-blue-900 text-white"
+            )}
+            title="Painel do Mestre"
+          >
+            <Unlock className="w-6 h-6" />
+          </motion.button>
+        )}
         
         <motion.button
           initial={{ opacity: 0, scale: 0.5 }}
