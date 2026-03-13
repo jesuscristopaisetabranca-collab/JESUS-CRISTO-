@@ -107,6 +107,20 @@ const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className,
 
   React.useEffect(() => {
     const loadText = async () => {
+      try {
+        // Try server first
+        const response = await fetch(`/api/content/text_${id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setText(data);
+          setTempText(data);
+          return;
+        }
+      } catch (err) {
+        console.error("Error loading text from server:", err);
+      }
+
+      // Fallback to IndexedDB
       const storedText = await get(`text_${id}`);
       if (storedText) {
         setText(storedText);
@@ -118,6 +132,17 @@ const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className,
 
   const handleSave = async () => {
     setText(tempText);
+    try {
+      // Save to server
+      await fetch(`/api/content/text_${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: tempText })
+      });
+    } catch (err) {
+      console.error("Error saving text to server:", err);
+    }
+    // Always save to IndexedDB as backup
     await set(`text_${id}`, tempText);
     setIsEditing(false);
   };
@@ -1558,42 +1583,64 @@ export default function App() {
 
   React.useEffect(() => {
     const loadData = async () => {
-      const savedNews = await get('vale_news');
-      if (savedNews) {
-        setNews(savedNews);
-      } else {
-        const defaultNews = [
-          {
-            id: '1',
-            title: 'Grande Trabalho de Estrela Candente',
-            content: 'Convocamos todos os jaguares para o grande trabalho de Estrela Candente que será realizado no próximo domingo. A presença de todos é fundamental para o equilíbrio das forças.',
-            date: '12 Mar, 2026',
-            category: 'Comunicado'
-          },
-          {
-            id: '2',
-            title: 'Novo Templo em Formatação',
-            content: 'É com muita alegria que anunciamos o início da formatação de um novo templo no interior de Minas Gerais. Que o Pai Seta Branca ilumine os mestres responsáveis.',
-            date: '10 Mar, 2026',
-            category: 'Notícia'
+      // Try server first for news
+      try {
+        const newsResponse = await fetch('/api/content/vale_news');
+        if (newsResponse.ok) {
+          const serverNews = await newsResponse.json();
+          setNews(serverNews);
+        } else {
+          const savedNews = await get('vale_news');
+          if (savedNews) {
+            setNews(savedNews);
+          } else {
+            const defaultNews = [
+              {
+                id: '1',
+                title: 'Grande Trabalho de Estrela Candente',
+                content: 'Convocamos todos os jaguares para o grande trabalho de Estrela Candente que será realizado no próximo domingo. A presença de todos é fundamental para o equilíbrio das forças.',
+                date: '12 Mar, 2026',
+                category: 'Comunicado'
+              },
+              {
+                id: '2',
+                title: 'Novo Templo em Formatação',
+                content: 'É com muita alegria que anunciamos o início da formatação de um novo templo no interior de Minas Gerais. Que o Pai Seta Branca ilumine os mestres responsáveis.',
+                date: '10 Mar, 2026',
+                category: 'Notícia'
+              }
+            ];
+            setNews(defaultNews);
+            await set('vale_news', defaultNews);
           }
-        ];
-        setNews(defaultNews);
-        await set('vale_news', defaultNews);
+        }
+      } catch (err) {
+        console.error("Error loading news from server:", err);
       }
 
-      const savedGallery = await get('vale_gallery');
-      if (savedGallery) {
-        setGalleryItems(savedGallery);
-      } else {
-        const defaultGallery: GalleryItem[] = [
-          { id: 'gal-1', type: 'image', title: 'Templo Mãe' },
-          { id: 'gal-2', type: 'image', title: 'Estrela Candente' },
-          { id: 'gal-3', type: 'video', title: 'Ritual de Cura' },
-          { id: 'gal-4', type: 'image', title: 'Jaguar em Oração' }
-        ];
-        setGalleryItems(defaultGallery);
-        await set('vale_gallery', defaultGallery);
+      // Try server first for gallery
+      try {
+        const galleryResponse = await fetch('/api/content/vale_gallery');
+        if (galleryResponse.ok) {
+          const serverGallery = await galleryResponse.json();
+          setGalleryItems(serverGallery);
+        } else {
+          const savedGallery = await get('vale_gallery');
+          if (savedGallery) {
+            setGalleryItems(savedGallery);
+          } else {
+            const defaultGallery: GalleryItem[] = [
+              { id: 'gal-1', type: 'image', title: 'Templo Mãe' },
+              { id: 'gal-2', type: 'image', title: 'Estrela Candente' },
+              { id: 'gal-3', type: 'video', title: 'Ritual de Cura' },
+              { id: 'gal-4', type: 'image', title: 'Jaguar em Oração' }
+            ];
+            setGalleryItems(defaultGallery);
+            await set('vale_gallery', defaultGallery);
+          }
+        }
+      } catch (err) {
+        console.error("Error loading gallery from server:", err);
       }
     };
     loadData();
@@ -1610,6 +1657,18 @@ export default function App() {
     };
     const updatedNews = [newItem, ...news];
     setNews(updatedNews);
+    
+    // Save to server
+    try {
+      await fetch('/api/content/vale_news', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: updatedNews })
+      });
+    } catch (err) {
+      console.error("Error saving news to server:", err);
+    }
+    
     await set('vale_news', updatedNews);
     setIsNewsModalOpen(false);
     setNewNews({ title: '', content: '', category: 'Comunicado' });
@@ -1620,6 +1679,18 @@ export default function App() {
     if (confirm("Deseja excluir este comunicado?")) {
       const updatedNews = news.filter(item => item.id !== id);
       setNews(updatedNews);
+      
+      // Save to server
+      try {
+        await fetch('/api/content/vale_news', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: updatedNews })
+        });
+      } catch (err) {
+        console.error("Error deleting news from server:", err);
+      }
+      
       await set('vale_news', updatedNews);
     }
   };
@@ -1634,6 +1705,18 @@ export default function App() {
       };
       const updatedGallery = [...galleryItems, newItem];
       setGalleryItems(updatedGallery);
+      
+      // Save to server
+      try {
+        await fetch('/api/content/vale_gallery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: updatedGallery })
+        });
+      } catch (err) {
+        console.error("Error saving gallery to server:", err);
+      }
+      
       await set('vale_gallery', updatedGallery);
     }
   };
@@ -1642,6 +1725,18 @@ export default function App() {
     if (confirm('Deseja realmente excluir este item da galeria?')) {
       const updatedGallery = galleryItems.filter(item => item.id !== id);
       setGalleryItems(updatedGallery);
+      
+      // Save to server
+      try {
+        await fetch('/api/content/vale_gallery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ value: updatedGallery })
+        });
+      } catch (err) {
+        console.error("Error deleting gallery from server:", err);
+      }
+      
       await set('vale_gallery', updatedGallery);
       // Also clean up from IDB
       await del(`img_${id}`);
@@ -4812,20 +4907,41 @@ export default function App() {
                   </div>
 
                   <div className={cn(
-                    "p-6 rounded-3xl border transition-all",
-                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-rose-50 border-rose-100"
+                    "p-6 rounded-3xl border transition-all sm:col-span-2",
+                    isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
                   )}>
-                    <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                      <RefreshCw className="w-6 h-6" />
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
+                          <RefreshCw className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className={cn("font-bold", isDarkMode ? "text-white" : "text-blue-900")}>Sincronia Energética</h3>
+                          <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest">Editor ↔ Portal</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 bg-emerald-500/10 text-emerald-600 rounded-full text-[10px] font-bold">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                        SINCRONIZADO
+                      </div>
                     </div>
-                    <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Resetar Tudo</h3>
-                    <p className="text-xs text-slate-500 mb-4">Volta todas as imagens e vídeos para o padrão original.</p>
-                    <button 
-                      onClick={resetAllImages}
-                      className="text-xs font-bold text-rose-600 hover:underline"
-                    >
-                      Resetar Agora
-                    </button>
+                    <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                      A sincronia entre o Editor (Doutrinador) e o Portal (Apará) garante que a energia da doutrina flua sem interferências entre o servidor e o navegador.
+                    </p>
+                    <div className="flex gap-3">
+                      <button 
+                        onClick={() => window.location.reload()}
+                        className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs transition-all shadow-md active:scale-95"
+                      >
+                        Sincronizar Agora
+                      </button>
+                      <button 
+                        onClick={resetAllImages}
+                        className="px-6 py-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl font-bold text-xs transition-all border border-rose-500/20 active:scale-95"
+                      >
+                        Resetar Tudo
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (

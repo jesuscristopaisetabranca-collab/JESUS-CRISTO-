@@ -4,9 +4,19 @@ import path from "path";
 import fs from "fs";
 import { fileURLToPath } from "url";
 import multer from "multer";
+import Database from "better-sqlite3";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Initialize database
+const db = new Database("data.db");
+db.exec(`
+  CREATE TABLE IF NOT EXISTS content (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )
+`);
 
 async function startServer() {
   const app = express();
@@ -74,7 +84,23 @@ async function startServer() {
     res.json(mapping);
   });
 
-  // API route to reset all uploads
+  // API routes for content persistence
+  app.get("/api/content/:key", (req, res) => {
+    const row = db.prepare("SELECT value FROM content WHERE key = ?").get(req.params.key) as { value: string } | undefined;
+    if (row) {
+      res.json(JSON.parse(row.value));
+    } else {
+      res.status(404).json({ error: "Not found" });
+    }
+  });
+
+  app.post("/api/content/:key", (req, res) => {
+    const { value } = req.body;
+    db.prepare("INSERT OR REPLACE INTO content (key, value) VALUES (?, ?)").run(req.params.key, JSON.stringify(value));
+    res.json({ success: true });
+  });
+
+  // API route to reset all uploads and content
   app.post("/api/reset", (req, res) => {
     if (fs.existsSync(uploadsDir)) {
       const files = fs.readdirSync(uploadsDir);
@@ -82,6 +108,7 @@ async function startServer() {
         fs.unlinkSync(path.join(uploadsDir, file));
       }
     }
+    db.prepare("DELETE FROM content").run();
     res.json({ success: true });
   });
 
