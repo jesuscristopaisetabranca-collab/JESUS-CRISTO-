@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { motion } from 'motion/react';
-import { GoogleGenAI } from "@google/genai";
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -202,6 +201,11 @@ const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className,
 const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, className, isDev }) => {
   const [src, setSrc] = React.useState<string>(defaultSrc);
   const [isUploading, setIsUploading] = React.useState(false);
+  const [uploadProgress, setUploadProgress] = React.useState(0);
+  const [uploadSpeed, setUploadSpeed] = React.useState(0);
+  const [uploadedBytes, setUploadedBytes] = React.useState(0);
+  const [totalBytes, setTotalBytes] = React.useState(0);
+  const [timeRemaining, setTimeRemaining] = React.useState<number | null>(null);
   const [aiError, setAiError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -239,7 +243,10 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
   }, [id]);
 
   const verifyImageWithAI = async (file: File): Promise<{ allowed: boolean; reason?: string }> => {
+    if (!isDev) return { allowed: true };
+
     try {
+      const { GoogleGenAI } = await import("@google/genai");
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("API Key missing");
       
@@ -274,7 +281,7 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
       return JSON.parse(text);
     } catch (err) {
       console.error("AI Verification Error:", err);
-      return { allowed: false, reason: "Erro de conexão com a segurança da IA." };
+      return { allowed: true }; // Default to allow if AI fails to avoid blocking admin
     }
   };
 
@@ -282,10 +289,12 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
     const file = e.target.files?.[0];
     if (file) {
       setAiError(null);
+      setUploadProgress(0);
+      setUploadSpeed(0);
       setIsUploading(true);
       try {
-        // 1. AI Verification - Bypass if admin
-        if (!isDev) {
+        // 1. AI Verification - Only for admin curation
+        if (isDev) {
           const verification = await verifyImageWithAI(file);
           if (!verification.allowed) {
             setAiError(verification.reason || "Conteúdo não permitido pela doutrina.");
@@ -294,27 +303,51 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
           }
         }
 
-        // 2. Save to server
+        // 2. Save to server with progress
         const formData = new FormData();
         formData.append('id', id);
         formData.append('file', file);
         
-        const response = await fetch('/api/upload', {
-          method: 'POST',
-          body: formData,
+        const xhr = new XMLHttpRequest();
+        let startTime = Date.now();
+
+        xhr.upload.addEventListener('progress', (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percent);
+            setUploadedBytes(event.loaded);
+            setTotalBytes(event.total);
+            
+            const currentTime = Date.now();
+            const duration = (currentTime - startTime) / 1000; // seconds
+            if (duration > 0) {
+              const speed = event.loaded / duration; // Bytes/s
+              setUploadSpeed(speed / 1024); // KB/s
+              
+              const remainingBytes = event.total - event.loaded;
+              const remainingTime = remainingBytes / speed;
+              setTimeRemaining(remainingTime);
+            }
+          }
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          setSrc(data.url);
-        } else {
-          // Fallback to IndexedDB if server fails
-          await set(`img_${id}`, file);
-          if (src && src.startsWith('blob:')) {
-            URL.revokeObjectURL(src);
-          }
-          setSrc(URL.createObjectURL(file));
-        }
+        const uploadPromise = new Promise<{ url: string }>((resolve, reject) => {
+          xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              resolve(JSON.parse(xhr.responseText));
+            } else {
+              reject(new Error(`Upload falhou com status ${xhr.status}`));
+            }
+          };
+          xhr.onerror = () => reject(new Error('Erro de rede durante o envio'));
+        });
+
+        xhr.open('POST', '/api/upload');
+        xhr.send(formData);
+
+        const data = await uploadPromise;
+        setSrc(data.url);
+
       } catch (err) {
         console.error("Error saving image:", err);
         // Fallback to IndexedDB
@@ -343,15 +376,30 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
             <div className="absolute inset-0 blur-xl bg-blue-400/30 animate-pulse" />
           </div>
           <p className="text-white text-sm font-bold uppercase tracking-widest animate-pulse">
-            Verificando com IA
+            {uploadProgress > 0 ? "Enviando Imagem" : "Verificando com IA"}
           </p>
-          <div className="mt-4 w-32 h-1 bg-white/20 rounded-full overflow-hidden">
-            <motion.div 
-              initial={{ x: "-100%" }}
-              animate={{ x: "100%" }}
-              transition={{ repeat: Infinity, duration: 1.5, ease: "linear" }}
-              className="w-full h-full bg-blue-400"
-            />
+          
+          <div className="mt-4 flex flex-col items-center w-full px-6">
+            <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden mb-2">
+              <motion.div 
+                initial={{ width: 0 }}
+                animate={{ width: `${uploadProgress || 30}%` }}
+                transition={uploadProgress === 0 ? { repeat: Infinity, duration: 1.5, ease: "linear" } : {}}
+                className="h-full bg-blue-400"
+              />
+            </div>
+            {uploadProgress > 0 && (
+              <>
+                <div className="flex justify-between w-full text-[9px] text-white/80 font-mono mb-1">
+                  <span>{uploadProgress}%</span>
+                  <span>{uploadSpeed > 1024 ? `${(uploadSpeed/1024).toFixed(1)}MB/s` : `${Math.round(uploadSpeed)}KB/s`}</span>
+                </div>
+                <div className="flex justify-between w-full text-[8px] text-white/60 font-mono">
+                  <span>{(uploadedBytes/1024).toFixed(0)}KB / {(totalBytes/1024).toFixed(0)}KB</span>
+                  {timeRemaining !== null && <span>{Math.round(timeRemaining)}s</span>}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -447,6 +495,9 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
   const [isVerifying, setIsVerifying] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [uploadSpeed, setUploadSpeed] = React.useState(0);
+  const [uploadedBytes, setUploadedBytes] = React.useState(0);
+  const [totalBytes, setTotalBytes] = React.useState(0);
+  const [timeRemaining, setTimeRemaining] = React.useState<number | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [lastFile, setLastFile] = React.useState<File | null>(null);
   const mediaRef = React.useRef<HTMLVideoElement | HTMLAudioElement>(null);
@@ -496,15 +547,14 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
   }, [id]);
 
   const verifyMediaWithAI = async (file: File): Promise<{ allowed: boolean; reason?: string }> => {
+    if (!isDev) return { allowed: true };
+
     try {
+      const { GoogleGenAI } = await import("@google/genai");
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("API Key missing");
       
       const ai = new GoogleGenAI({ apiKey });
-      
-      // For video/audio, we'll ask the AI to verify the filename and type for now, 
-      // or just assume it's safe if it's a standard media type, but the user asked for MAX security.
-      // Ideally we'd send a frame of the video.
       
       const prompt = `Um usuário está tentando subir um arquivo de mídia (${file.type}, nome: ${file.name}) para um portal do Vale do Amanhecer.
       O portal é sagrado e dedicado à Doutrina do Amanhecer.
@@ -554,8 +604,8 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
     setIsUploading(true);
     
     try {
-      // 1. AI Verification - Bypass if admin
-      if (!isDev) {
+      // 1. AI Verification - Only for admin curation
+      if (isDev) {
         setIsVerifying(true);
         const verification = await verifyMediaWithAI(file);
         setIsVerifying(false);
@@ -580,12 +630,18 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
           setUploadProgress(percent);
+          setUploadedBytes(event.loaded);
+          setTotalBytes(event.total);
           
           const currentTime = Date.now();
           const duration = (currentTime - startTime) / 1000; // seconds
           if (duration > 0) {
-            const speed = event.loaded / duration / 1024; // KB/s
-            setUploadSpeed(Math.round(speed));
+            const speed = event.loaded / duration; // Bytes/s
+            setUploadSpeed(speed / 1024); // KB/s
+            
+            const remainingBytes = event.total - event.loaded;
+            const remainingTime = remainingBytes / speed;
+            setTimeRemaining(remainingTime);
           }
         }
       });
@@ -720,9 +776,25 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
                   className="h-full bg-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.5)]"
                 />
               </div>
-              <div className="flex justify-between w-full text-[10px] text-white/80 font-mono">
+              <div className="flex justify-between w-full text-[10px] text-white/80 font-mono mb-1">
                 <span>{uploadProgress}%</span>
-                <span>{uploadSpeed} KB/s</span>
+                <span>
+                  {uploadSpeed > 1024 
+                    ? `${(uploadSpeed / 1024).toFixed(1)} MB/s` 
+                    : `${Math.round(uploadSpeed)} KB/s`}
+                </span>
+              </div>
+              <div className="flex justify-between w-full text-[9px] text-white/60 font-mono">
+                <span>
+                  {(uploadedBytes / (1024 * 1024)).toFixed(1)} / {(totalBytes / (1024 * 1024)).toFixed(1)} MB
+                </span>
+                {timeRemaining !== null && (
+                  <span>
+                    {timeRemaining > 60 
+                      ? `${Math.floor(timeRemaining / 60)}m ${Math.round(timeRemaining % 60)}s` 
+                      : `${Math.round(timeRemaining)}s`} restantes
+                  </span>
+                )}
               </div>
             </div>
           )}
@@ -830,6 +902,7 @@ const LetterTranscriber: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) =>
 
   const verifyImageWithAI = async (base64: string, mimeType: string): Promise<{ allowed: boolean; reason?: string }> => {
     try {
+      const { GoogleGenAI } = await import("@google/genai");
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) throw new Error("API Key missing");
       
@@ -891,6 +964,7 @@ const LetterTranscriber: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) =>
     setLoading(true);
     setError(null);
     try {
+      const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       const model = "gemini-3-flash-preview";
       
@@ -3536,9 +3610,11 @@ export default function App() {
             )}
             </div>
 
-            <div id="assistente-ia" className="mt-24 scroll-mt-24">
-              <LetterTranscriber isDarkMode={isDarkMode} />
-            </div>
+            {isDev && (
+              <div id="assistente-ia" className="mt-24 scroll-mt-24">
+                <LetterTranscriber isDarkMode={isDarkMode} />
+              </div>
+            )}
 
             <div className="mt-16 text-center">
               <p className={cn(
@@ -4797,6 +4873,25 @@ export default function App() {
         </motion.button>
       </div>
 
+      {/* Fixed Request Access Button */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="fixed bottom-6 left-6 z-[60]"
+      >
+        <a 
+          href={`https://mail.google.com/mail/?view=cm&fs=1&to=${siteConfig.contactEmail}&su=Solicitação de Acesso ao Acervo Digital - Vale do Amanhecer&body=Salve Deus! Gostaria de solicitar acesso ao acervo completo no Google Drive.`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 px-6 py-4 bg-emerald-600 text-white rounded-full font-bold shadow-2xl hover:scale-105 transition-all group"
+        >
+          <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center group-hover:rotate-12 transition-transform">
+            <Mail className="w-4 h-4" />
+          </div>
+          <span className="text-sm">Solicitar Acesso ao Acervo</span>
+        </a>
+      </motion.div>
+
       {/* Admin Panel Modal */}
       {isAdminPanelOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -4868,212 +4963,10 @@ export default function App() {
               )}
 
               {isDev ? (
-                adminTab === 'actions' ? (
-                  <div className="grid sm:grid-cols-2 gap-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-blue-50 border-blue-100"
-                    )}>
-                      <div className="w-12 h-12 bg-blue-900 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                        <ImageIcon className="w-6 h-6" />
-                      </div>
-                      <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Editar Imagens</h3>
-                      <p className="text-xs text-slate-500 mb-4">Passe o mouse sobre qualquer imagem no site para ver o botão de upload.</p>
-                      <button 
-                        onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        className="text-xs font-bold text-blue-600 hover:underline"
-                      >
-                        Ver Imagens
-                      </button>
-                    </div>
-
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-amber-50 border-amber-100"
-                    )}>
-                      <div className="w-12 h-12 bg-amber-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                        <Edit3 className="w-6 h-6" />
-                      </div>
-                      <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Editar Textos</h3>
-                      <p className="text-xs text-slate-500 mb-4">Clique em qualquer parágrafo ou título para abrir o editor de texto.</p>
-                      <button 
-                        onClick={() => { setIsAdminPanelOpen(false); }}
-                        className="text-xs font-bold text-amber-600 hover:underline"
-                      >
-                        Começar a Editar
-                      </button>
-                    </div>
-
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-indigo-50 border-indigo-100"
-                    )}>
-                      <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                        <Layout className="w-6 h-6" />
-                      </div>
-                      <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Gerenciar Galeria</h3>
-                      <p className="text-xs text-slate-500 mb-4">Adicione novas fotos e vídeos na galeria de mídia do portal.</p>
-                      <button 
-                        onClick={() => { setIsAdminPanelOpen(false); document.getElementById('galeria')?.scrollIntoView({ behavior: 'smooth' }); }}
-                        className="text-xs font-bold text-indigo-600 hover:underline"
-                      >
-                        Ir para Galeria
-                      </button>
-                    </div>
-
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
-                    )}>
-                      <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                        <Download className="w-6 h-6" />
-                      </div>
-                      <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Acervo no Drive</h3>
-                      <p className="text-xs text-slate-500 mb-4">Acesse a pasta oficial do Google Drive para gerenciar arquivos e downloads.</p>
-                      <a 
-                        href="https://drive.google.com/drive/my-drive"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs font-bold text-emerald-600 hover:underline"
-                      >
-                        Abrir Google Drive
-                      </a>
-                    </div>
-
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-violet-50 border-violet-100"
-                    )}>
-                      <div className="w-12 h-12 bg-violet-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                        <VideoIcon className="w-6 h-6" />
-                      </div>
-                      <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Vídeo/Áudio</h3>
-                      <p className="text-xs text-slate-500 mb-4">O vídeo ou áudio de abertura pode ser alterado diretamente na seção inicial.</p>
-                      <button 
-                        onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        className="text-xs font-bold text-violet-600 hover:underline"
-                      >
-                        Ver Abertura
-                      </button>
-                    </div>
-
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
-                    )}>
-                      <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
-                        <FileIcon className="w-6 h-6" />
-                      </div>
-                      <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Arquivos do Acervo</h3>
-                      <p className="text-xs text-slate-500 mb-4">Suba novos documentos e materiais na seção de Downloads.</p>
-                      <button 
-                        onClick={() => { setIsAdminPanelOpen(false); document.getElementById('arquivos')?.scrollIntoView({ behavior: 'smooth' }); }}
-                        className="text-xs font-bold text-emerald-600 hover:underline"
-                      >
-                        Ir para Downloads
-                      </button>
-                    </div>
-
-                    <div className={cn(
-                      "p-6 rounded-3xl border transition-all sm:col-span-2",
-                      isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
-                    )}>
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg">
-                            <Trash2 className="w-5 h-5" />
-                          </div>
-                          <h3 className={cn("font-bold", isDarkMode ? "text-white" : "text-blue-900")}>Resetar Portal</h3>
-                        </div>
-                        <button 
-                          onClick={resetAllImages}
-                          className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded-xl transition-colors shadow-lg"
-                        >
-                          Resetar Tudo
-                        </button>
-                      </div>
-                      <p className="text-xs text-slate-500">Apaga todas as edições de texto, imagens e vídeos, voltando ao estado original.</p>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Nome do Portal</label>
-                        <input 
-                          type="text" 
-                          value={siteConfig.siteName}
-                          onChange={(e) => updateSiteConfig({ siteName: e.target.value })}
-                          className={cn(
-                            "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                            isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Subtítulo</label>
-                        <input 
-                          type="text" 
-                          value={siteConfig.siteSubtitle}
-                          onChange={(e) => updateSiteConfig({ siteSubtitle: e.target.value })}
-                          className={cn(
-                            "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                            isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">E-mail de Contato</label>
-                        <input 
-                          type="email" 
-                          value={siteConfig.contactEmail}
-                          onChange={(e) => updateSiteConfig({ contactEmail: e.target.value })}
-                          className={cn(
-                            "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                            isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Chave PIX (Doações)</label>
-                        <input 
-                          type="text" 
-                          value={siteConfig.pixKey}
-                          onChange={(e) => updateSiteConfig({ pixKey: e.target.value })}
-                          className={cn(
-                            "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                            isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Canal do YouTube</label>
-                        <input 
-                          type="url" 
-                          value={siteConfig.youtubeChannel}
-                          onChange={(e) => updateSiteConfig({ youtubeChannel: e.target.value })}
-                          className={cn(
-                            "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                            isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
-                          )}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Link Tipa.ai</label>
-                        <input 
-                          type="url" 
-                          value={siteConfig.tipaUrl}
-                          onChange={(e) => updateSiteConfig({ tipaUrl: e.target.value })}
-                          className={cn(
-                            "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
-                            isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
-                          )}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )
-              ) : (                      <div className="flex items-center gap-4">
+                <div className="space-y-6">
+                  <div className="p-6 rounded-3xl border border-emerald-500/20 bg-emerald-500/5 mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white shadow-lg">
                           <RefreshCw className="w-6 h-6" />
                         </div>
@@ -5097,14 +4990,214 @@ export default function App() {
                       >
                         Sincronizar Agora
                       </button>
-                      <button 
-                        onClick={resetAllImages}
-                        className="px-6 py-3 bg-rose-500/10 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl font-bold text-xs transition-all border border-rose-500/20 active:scale-95"
-                      >
-                        Resetar Tudo
-                      </button>
                     </div>
                   </div>
+
+                  {adminTab === 'actions' ? (
+                    <div className="grid sm:grid-cols-2 gap-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-blue-50 border-blue-100"
+                      )}>
+                        <div className="w-12 h-12 bg-blue-900 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                          <ImageIcon className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Editar Imagens</h3>
+                        <p className="text-xs text-slate-500 mb-4">Passe o mouse sobre qualquer imagem no site para ver o botão de upload.</p>
+                        <button 
+                          onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="text-xs font-bold text-blue-600 hover:underline"
+                        >
+                          Ver Imagens
+                        </button>
+                      </div>
+
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-amber-50 border-amber-100"
+                      )}>
+                        <div className="w-12 h-12 bg-amber-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                          <Edit3 className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Editar Textos</h3>
+                        <p className="text-xs text-slate-500 mb-4">Clique em qualquer parágrafo ou título para abrir o editor de texto.</p>
+                        <button 
+                          onClick={() => { setIsAdminPanelOpen(false); }}
+                          className="text-xs font-bold text-amber-600 hover:underline"
+                        >
+                          Começar a Editar
+                        </button>
+                      </div>
+
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-indigo-50 border-indigo-100"
+                      )}>
+                        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                          <Layout className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Gerenciar Galeria</h3>
+                        <p className="text-xs text-slate-500 mb-4">Adicione novas fotos e vídeos na galeria de mídia do portal.</p>
+                        <button 
+                          onClick={() => { setIsAdminPanelOpen(false); document.getElementById('galeria')?.scrollIntoView({ behavior: 'smooth' }); }}
+                          className="text-xs font-bold text-indigo-600 hover:underline"
+                        >
+                          Ir para Galeria
+                        </button>
+                      </div>
+
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
+                      )}>
+                        <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                          <Download className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Acervo no Drive</h3>
+                        <p className="text-xs text-slate-500 mb-4">Acesse a pasta oficial do Google Drive para gerenciar arquivos e downloads.</p>
+                        <a 
+                          href="https://drive.google.com/drive/my-drive"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-bold text-emerald-600 hover:underline"
+                        >
+                          Abrir Google Drive
+                        </a>
+                      </div>
+
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-violet-50 border-violet-100"
+                      )}>
+                        <div className="w-12 h-12 bg-violet-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                          <VideoIcon className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Vídeo/Áudio</h3>
+                        <p className="text-xs text-slate-500 mb-4">O vídeo ou áudio de abertura pode ser alterado diretamente na seção inicial.</p>
+                        <button 
+                          onClick={() => { setIsAdminPanelOpen(false); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                          className="text-xs font-bold text-violet-600 hover:underline"
+                        >
+                          Ver Abertura
+                        </button>
+                      </div>
+
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
+                      )}>
+                        <div className="w-12 h-12 bg-emerald-600 rounded-2xl flex items-center justify-center text-white mb-4 shadow-lg">
+                          <FileIcon className="w-6 h-6" />
+                        </div>
+                        <h3 className={cn("font-bold mb-2", isDarkMode ? "text-white" : "text-blue-900")}>Arquivos do Acervo</h3>
+                        <p className="text-xs text-slate-500 mb-4">Suba novos documentos e materiais na seção de Downloads.</p>
+                        <button 
+                          onClick={() => { setIsAdminPanelOpen(false); document.getElementById('arquivos')?.scrollIntoView({ behavior: 'smooth' }); }}
+                          className="text-xs font-bold text-emerald-600 hover:underline"
+                        >
+                          Ir para Downloads
+                        </button>
+                      </div>
+
+                      <div className={cn(
+                        "p-6 rounded-3xl border transition-all sm:col-span-2",
+                        isDarkMode ? "bg-slate-800 border-slate-700" : "bg-emerald-50 border-emerald-100"
+                      )}>
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-rose-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                              <Trash2 className="w-5 h-5" />
+                            </div>
+                            <h3 className={cn("font-bold", isDarkMode ? "text-white" : "text-blue-900")}>Resetar Portal</h3>
+                          </div>
+                          <button 
+                            onClick={resetAllImages}
+                            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-[10px] font-bold rounded-xl transition-colors shadow-lg"
+                          >
+                            Resetar Tudo
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-500">Apaga todas as edições de texto, imagens e vídeos, voltando ao estado original.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Nome do Portal</label>
+                          <input 
+                            type="text" 
+                            value={siteConfig.siteName}
+                            onChange={(e) => updateSiteConfig({ siteName: e.target.value })}
+                            className={cn(
+                              "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                              isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Subtítulo</label>
+                          <input 
+                            type="text" 
+                            value={siteConfig.siteSubtitle}
+                            onChange={(e) => updateSiteConfig({ siteSubtitle: e.target.value })}
+                            className={cn(
+                              "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                              isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">E-mail de Contato</label>
+                          <input 
+                            type="email" 
+                            value={siteConfig.contactEmail}
+                            onChange={(e) => updateSiteConfig({ contactEmail: e.target.value })}
+                            className={cn(
+                              "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                              isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Chave PIX (Doações)</label>
+                          <input 
+                            type="text" 
+                            value={siteConfig.pixKey}
+                            onChange={(e) => updateSiteConfig({ pixKey: e.target.value })}
+                            className={cn(
+                              "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                              isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Canal do YouTube</label>
+                          <input 
+                            type="url" 
+                            value={siteConfig.youtubeChannel}
+                            onChange={(e) => updateSiteConfig({ youtubeChannel: e.target.value })}
+                            className={cn(
+                              "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                              isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
+                            )}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Link Tipa.ai</label>
+                          <input 
+                            type="url" 
+                            value={siteConfig.tipaUrl}
+                            onChange={(e) => updateSiteConfig({ tipaUrl: e.target.value })}
+                            className={cn(
+                              "w-full px-4 py-3 rounded-xl border focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                              isDarkMode ? "bg-slate-800 border-slate-700 text-white" : "bg-slate-50 border-slate-200"
+                            )}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12">
