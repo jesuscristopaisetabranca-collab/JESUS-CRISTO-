@@ -45,6 +45,7 @@ import {
   ArrowRight,
   Trash2,
   Music,
+  Pause,
   Volume2,
   HeartHandshake,
   Mic2,
@@ -117,6 +118,7 @@ import Login from './components/Login';
 import { db, storage } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { handleFirestoreError, OperationType } from './lib/firestore-errors';
 
 const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className, isDev, tagName: Tag = 'span' }) => {
   const [text, setText] = React.useState(defaultText);
@@ -133,7 +135,7 @@ const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className,
           setTempText(docSnap.data().value);
         }
       } catch (err) {
-        console.error("Error loading text from Firebase:", err);
+        handleFirestoreError(err, OperationType.GET, `content/text_${id}`);
       }
     };
     loadText();
@@ -148,7 +150,7 @@ const EditableText: React.FC<EditableTextProps> = ({ id, defaultText, className,
         updatedAt: new Date().toISOString()
       }, { merge: true });
     } catch (err) {
-      console.error("Error saving text to Firebase:", err);
+      handleFirestoreError(err, OperationType.WRITE, `content/text_${id}`);
     }
     setIsEditing(false);
   };
@@ -210,7 +212,7 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
           setSrc(docSnap.data().value);
         }
       } catch (err) {
-        console.error("Error loading image from Firebase:", err);
+        handleFirestoreError(err, OperationType.GET, `content/img_${id}`);
       }
     };
     loadImage();
@@ -239,7 +241,7 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
         }, { merge: true });
 
       } catch (err) {
-        console.error("Error saving image:", err);
+        handleFirestoreError(err, OperationType.WRITE, `content/img_${id}`);
       } finally {
         setIsUploading(false);
       }
@@ -536,6 +538,15 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
       xhr.send(formData);
 
       const data = await uploadPromise;
+      
+      // Save to IndexedDB as well for offline fallback and persistence
+      try {
+        await set(`media_${id}`, file);
+        await set(`media_type_${id}`, type);
+      } catch (idbErr) {
+        console.warn("Could not save to IndexedDB:", idbErr);
+      }
+
       setMediaSrc(data.url);
       setMediaType(type);
       
@@ -554,6 +565,18 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
       try {
         await del(`media_${id}`);
         await del(`media_type_${id}`);
+        
+        // Also try to notify the server to reset this mapping if possible
+        try {
+          await fetch('/api/media/reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id })
+          });
+        } catch (serverErr) {
+          console.warn("Could not notify server of media removal:", serverErr);
+        }
+
         if (mediaSrc && mediaSrc.startsWith('blob:')) {
           URL.revokeObjectURL(mediaSrc);
         }
@@ -721,7 +744,7 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
               className="p-4 bg-violet-500 rounded-full text-white shadow-xl hover:scale-110 transition-transform"
               title={isPlaying ? "Pausar" : "Reproduzir"}
             >
-              {isPlaying ? <X className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current" />}
+              {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6 fill-current" />}
             </button>
           )}
           {isDev && (

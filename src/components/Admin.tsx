@@ -24,6 +24,7 @@ import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
 import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 
 const Admin: React.FC = () => {
   const [user, setUser] = useState<any>(null);
@@ -48,11 +49,15 @@ const Admin: React.FC = () => {
   }, [navigate]);
 
   const fetchData = async () => {
-    const contentSnap = await getDocs(collection(db, 'content'));
-    setContents(contentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    try {
+      const contentSnap = await getDocs(collection(db, 'content'));
+      setContents(contentSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
 
-    const articleSnap = await getDocs(collection(db, 'articles'));
-    setArticles(articleSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const articleSnap = await getDocs(collection(db, 'articles'));
+      setArticles(articleSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, 'content/articles');
+    }
   };
 
   const handleLogout = async () => {
@@ -61,9 +66,13 @@ const Admin: React.FC = () => {
   };
 
   const handleSaveContent = async (id: string, value: string) => {
-    await setDoc(doc(db, 'content', id), { value, updatedAt: new Date().toISOString() }, { merge: true });
-    fetchData();
-    setEditingItem(null);
+    try {
+      await setDoc(doc(db, 'content', id), { value, updatedAt: new Date().toISOString() }, { merge: true });
+      fetchData();
+      setEditingItem(null);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `content/${id}`);
+    }
   };
 
   const handleUpload = async (file: File, folder: string) => {

@@ -100,6 +100,22 @@ async function startServer() {
     res.json({ success: true });
   });
 
+  // API route to delete specific media
+  app.post("/api/media/reset", (req, res) => {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ error: "No ID provided" });
+
+    if (fs.existsSync(uploadsDir)) {
+      const files = fs.readdirSync(uploadsDir);
+      for (const file of files) {
+        if (path.parse(file).name === id) {
+          fs.unlinkSync(path.join(uploadsDir, file));
+        }
+      }
+    }
+    res.json({ success: true });
+  });
+
   // API route to reset all uploads and content
   app.post("/api/reset", (req, res) => {
     if (fs.existsSync(uploadsDir)) {
