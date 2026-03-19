@@ -200,7 +200,6 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
   const [src, setSrc] = React.useState<string>(defaultSrc);
   const [isUploading, setIsUploading] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
-  const [aiError, setAiError] = React.useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
@@ -221,7 +220,6 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setAiError(null);
       setUploadProgress(0);
       setIsUploading(true);
       try {
@@ -265,7 +263,7 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
             <div className="absolute inset-0 blur-xl bg-blue-400/30 animate-pulse" />
           </div>
           <p className="text-white text-sm font-bold uppercase tracking-widest animate-pulse">
-            {uploadProgress > 0 ? "Enviando Imagem" : "Verificando com IA"}
+            {uploadProgress > 0 ? "Enviando Imagem" : "Carregando..."}
           </p>
           
           <div className="mt-4 flex flex-col items-center w-full px-6">
@@ -277,20 +275,6 @@ const EditableImage: React.FC<EditableImageProps> = ({ id, defaultSrc, alt, clas
               />
             </div>
           </div>
-        </div>
-      )}
-
-      {aiError && (
-        <div className="absolute inset-0 bg-rose-600/90 backdrop-blur-sm flex flex-col items-center justify-center p-4 text-center z-50 animate-in zoom-in duration-300">
-          <ShieldCheck className="w-12 h-12 text-white mb-3" />
-          <h4 className="text-white font-bold uppercase tracking-tighter mb-1">Segurança Espiritual</h4>
-          <p className="text-white/90 text-xs font-medium mb-4 max-w-[180px]">{aiError}</p>
-          <button 
-            onClick={() => setAiError(null)}
-            className="px-6 py-2 bg-white text-rose-600 rounded-full text-[10px] font-bold uppercase hover:bg-rose-50 transition-colors shadow-lg"
-          >
-            Entendido
-          </button>
         </div>
       )}
 
@@ -347,16 +331,11 @@ const VideoPlayer: React.FC<{ title: string; id: string; description: string; is
         )}>{description}</p>
       </div>
       <div className="mt-auto aspect-video rounded-2xl overflow-hidden bg-black relative group border-2 border-transparent hover:border-violet-500 transition-all">
-        <EditableMedia 
+        <EditableImage 
           id={id}
           isDev={isDev}
-          className="w-full h-full"
+          className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none group-hover:opacity-0 transition-opacity bg-black/20">
-           <div className="w-16 h-16 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center border border-white/30">
-             <Play className="w-8 h-8 text-white fill-white ml-1" />
-           </div>
-        </div>
       </div>
     </motion.div>
   );
@@ -368,7 +347,6 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isUploading, setIsUploading] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
-  const [isVerifying, setIsVerifying] = React.useState(false);
   const [uploadProgress, setUploadProgress] = React.useState(0);
   const [uploadSpeed, setUploadSpeed] = React.useState(0);
   const [uploadedBytes, setUploadedBytes] = React.useState(0);
@@ -422,39 +400,6 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
     };
   }, [id]);
 
-  const verifyMediaWithAI = async (file: File): Promise<{ allowed: boolean; reason?: string }> => {
-    if (!isDev) return { allowed: true };
-
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key missing");
-      
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const prompt = `Um usuário está tentando subir um arquivo de mídia (${file.type}, nome: ${file.name}) para um portal do Vale do Amanhecer.
-      O portal é sagrado e dedicado à Doutrina do Amanhecer.
-      Baseado apenas no nome do arquivo e no tipo, existe algum indício de conteúdo impróprio, ofensivo ou malicioso?
-      Responda estritamente em JSON: {"allowed": boolean, "reason": "explicação curta em português"}`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [{ text: prompt }]
-        },
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-
-      const text = response.text || '{"allowed": false, "reason": "Erro na resposta da IA"}';
-      return JSON.parse(text);
-    } catch (err) {
-      console.error("AI Verification Error:", err);
-      return { allowed: true }; // Default to allow if AI fails for media to avoid blocking legitimate large files
-    }
-  };
-
   const handleMediaChange = async (e: React.ChangeEvent<HTMLInputElement> | File) => {
     const file = (typeof File !== 'undefined' && e instanceof File) ? e : (e as React.ChangeEvent<HTMLInputElement>).target.files?.[0];
     if (!file) return;
@@ -480,20 +425,7 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
     setIsUploading(true);
     
     try {
-      // 1. AI Verification - Only for admin curation
-      if (isDev) {
-        setIsVerifying(true);
-        const verification = await verifyMediaWithAI(file);
-        setIsVerifying(false);
-        
-        if (!verification.allowed) {
-          setError(verification.reason || "Arquivo rejeitado pela segurança da IA.");
-          setIsUploading(false);
-          return;
-        }
-      }
-
-      // 2. Upload with progress
+      // Upload with progress
       const type = isVideo ? 'video' : 'audio';
       const formData = new FormData();
       formData.append('id', id);
@@ -555,7 +487,6 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
       setError(err instanceof Error ? err.message : "Erro ao salvar mídia. Tente novamente.");
     } finally {
       setIsUploading(false);
-      setIsVerifying(false);
     }
   };
 
@@ -661,11 +592,10 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
             <div className="absolute inset-0 blur-2xl bg-violet-400/40 animate-pulse" />
           </div>
           <p className="text-white text-sm font-bold uppercase tracking-widest animate-pulse">
-            {isVerifying ? "Analisando Mídia" : "Enviando Arquivo"}
+            Enviando Arquivo
           </p>
           
-          {!isVerifying && (
-            <div className="mt-4 flex flex-col items-center w-full px-8">
+          <div className="mt-4 flex flex-col items-center w-full px-8">
               <div className="w-full h-2 bg-white/20 rounded-full overflow-hidden mb-2">
                 <motion.div 
                   initial={{ width: 0 }}
@@ -694,25 +624,13 @@ const EditableMedia: React.FC<EditableMediaProps> = ({ id, defaultSrc, className
                 )}
               </div>
             </div>
-          )}
-          
-          {isVerifying && (
-            <div className="mt-6 w-40 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <motion.div 
-                initial={{ x: "-100%" }}
-                animate={{ x: "100%" }}
-                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
-                className="w-full h-full bg-violet-400"
-              />
-            </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
 
       {error && (
         <div className="absolute inset-0 bg-rose-600/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center z-50 animate-in zoom-in duration-300">
-          <ShieldCheck className="w-12 h-12 text-white mb-4" />
-          <h4 className="text-white font-bold uppercase tracking-tighter mb-2">Falha na Segurança</h4>
+          <X className="w-12 h-12 text-white mb-4" />
+          <h4 className="text-white font-bold uppercase tracking-tighter mb-2">Erro no Upload</h4>
           <p className="text-white/90 text-xs font-medium mb-6 max-w-[220px] leading-relaxed">{error}</p>
           <div className="flex gap-3">
             <button 
@@ -794,63 +712,17 @@ const LetterTranscriber: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) =>
   const [image, setImage] = React.useState<string | null>(null);
   const [transcription, setTranscription] = React.useState<string>("");
   const [loading, setLoading] = React.useState(false);
-  const [isVerifying, setIsVerifying] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  const verifyImageWithAI = async (base64: string, mimeType: string): Promise<{ allowed: boolean; reason?: string }> => {
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) throw new Error("API Key missing");
-      
-      const ai = new GoogleGenAI({ apiKey });
-      
-      const prompt = `Analise esta imagem para um sistema de transcrição de cartas do Vale do Amanhecer. 
-      A imagem deve ser uma carta manuscrita, documento antigo ou algo relacionado à Doutrina do Vale do Amanhecer (Tia Neiva, Pai Seta Branca, rituais, etc).
-      REJEITE terminantemente: pornografia, violência, ódio, propaganda política, memes ofensivos ou qualquer conteúdo que não seja um documento ou imagem sagrada compatível.
-      Responda estritamente em JSON: {"allowed": boolean, "reason": "explicação curta em português"}`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: {
-          parts: [
-            { inlineData: { data: base64, mimeType } },
-            { text: prompt }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json"
-        }
-      });
-
-      const text = response.text || '{"allowed": false, "reason": "Erro na resposta da IA"}';
-      return JSON.parse(text);
-    } catch (err) {
-      console.error("AI Verification Error:", err);
-      return { allowed: false, reason: "Erro de conexão com a segurança da IA." };
-    }
-  };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setError(null);
-      setIsVerifying(true);
       
       const reader = new FileReader();
       reader.onloadend = async () => {
         const base64Full = reader.result as string;
-        const base64Data = base64Full.split(',')[1];
-        
-        const verification = await verifyImageWithAI(base64Data, file.type);
-        
-        if (verification.allowed) {
-          setImage(base64Full);
-        } else {
-          setError(verification.reason || "Conteúdo não permitido.");
-          setImage(null);
-        }
-        setIsVerifying(false);
+        setImage(base64Full);
       };
       reader.readAsDataURL(file);
     }
@@ -913,31 +785,25 @@ const LetterTranscriber: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) =>
               <img src={image} alt="Carta" className="w-full h-full object-contain" />
             ) : (
               <div className="text-center p-6">
-                {isVerifying ? (
-                  <RefreshCw className="w-12 h-12 text-violet-500 mx-auto mb-4 animate-spin" />
-                ) : (
-                  <ImageIcon className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
-                )}
+                <ImageIcon className="w-12 h-12 text-emerald-400 mx-auto mb-4" />
                 <p className={cn("text-sm", isDarkMode ? "text-slate-400" : "text-emerald-700")}>
-                  {isVerifying ? "Verificando segurança da imagem..." : "Faça o upload da imagem da carta para transcrição"}
+                  Faça o upload da imagem da carta para transcrição
                 </p>
               </div>
             )}
-            {!isVerifying && (
-              <input 
-                type="file" 
-                accept="image/*" 
-                onChange={handleImageUpload}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-              />
-            )}
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={handleImageUpload}
+              className="absolute inset-0 opacity-0 cursor-pointer"
+            />
           </div>
           <button 
             onClick={transcribeLetter}
-            disabled={!image || loading || isVerifying}
+            disabled={!image || loading}
             className={cn(
               "w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg",
-              !image || loading || isVerifying ? "bg-slate-300 cursor-not-allowed" : "bg-violet-500 hover:bg-violet-600 text-white"
+              !image || loading ? "bg-slate-300 cursor-not-allowed" : "bg-violet-500 hover:bg-violet-600 text-white"
             )}
           >
             {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
@@ -1161,7 +1027,7 @@ const DonationSection: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
               "text-lg mb-10 max-w-2xl mx-auto leading-relaxed",
               isDarkMode ? "text-slate-400" : "text-emerald-800"
             )}
-            defaultText='"Fora da caridade não há salvação." Este portal é mantido de forma independente para servir à nossa Doutrina. Sua contribuição ajuda a pagar os custos de servidor e IA, garantindo que a luz continue brilhando para todos os jaguares.' 
+            defaultText='"Fora da caridade não há salvação." Este portal é mantido de forma independente para servir à nossa Doutrina. Sua contribuição ajuda a pagar os custos de servidor, garantindo que a luz continue brilhando para todos os jaguares.' 
           />
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -2275,10 +2141,6 @@ export default function App() {
               <EditableText id="nav-blog" isDev={isDev} defaultText="Blog" />
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
             </a>
-            <a href="#assistente-ia" className="px-4 py-2 hover:text-violet-500 transition-colors relative group">
-              <EditableText id="nav-assistente-ia" isDev={isDev} defaultText="Assistente IA" />
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
-            </a>
             <a href="#perolas" className="px-4 py-2 hover:text-violet-500 transition-colors relative group">
               <EditableText id="nav-perolas" isDev={isDev} defaultText="Só as Pérolas" />
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-violet-500 transition-all group-hover:w-full"></span>
@@ -2431,7 +2293,6 @@ export default function App() {
                 <a href="#arquivos" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Downloads</a>
                 <a href="#noticias" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Notícias</a>
                 <a href="#blog" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Blog</a>
-                <a href="#assistente-ia" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">IA</a>
                 <a href="#perolas" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Pérolas</a>
                 <a href="#contato" onClick={() => setIsMobileMenuOpen(false)} className="py-2 hover:text-violet-500 transition-colors">Contato</a>
                 <a href="https://tipa.ai/jesuscristopaisetabranca" target="_blank" rel="noopener noreferrer" onClick={() => setIsMobileMenuOpen(false)} className="py-2 text-rose-500 font-bold flex items-center gap-2">
@@ -3453,12 +3314,7 @@ export default function App() {
             )}
             </div>
 
-            {isDev && (
-              <div id="assistente-ia" className="mt-24 scroll-mt-24">
-                <LetterTranscriber isDarkMode={isDarkMode} />
-              </div>
-            )}
-
+            {/* Assistente IA Section Removed */}
             <div className="mt-16 text-center">
               <p className={cn(
                 "text-sm mb-6 max-w-lg mx-auto",
